@@ -8,6 +8,7 @@ import { IncomingMessage } from "http";
 import { WebSocketServer } from "ws";
 import jwt from "jsonwebtoken";
 import { parse } from "cookie";
+import env from '../../config/env'
 
 const rooms = new Map<string, TLSocketRoom>();
 const roomCloseTimers = new Map<string, NodeJS.Timeout>();
@@ -83,10 +84,10 @@ export const handleWhiteboardUpgrade = async (req: IncomingMessage, socket: any,
 
     try {
         const cookies = parse(req.headers.cookie ?? '');
-        const token = cookies['token'] || url.searchParams.get('token');
+        const token = cookies['token'];
         if (!token) throw new Error('No token');
 
-        const payload = jwt.verify(token, process.env.JWT_SECRET!) as { id: string };
+        const payload = jwt.verify(token, env.JWT_SECRET!) as { id: string };
         const userId = payload.id;
 
         const [membership] = await db.select()
