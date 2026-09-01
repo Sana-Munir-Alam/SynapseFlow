@@ -11,7 +11,7 @@ import groupRoutes from "./routes/group.routes";
 import chatbotRoutes from "./routes/chatbot.routes";
 import progressRoutes from './routes/progress.routes'
 import boardRoutes from "./routes/board.routes"
-
+import { notFoundHandler, errorHandler } from './middleware/errorHandler.middleware'
 
 const app = express();
 
@@ -43,5 +43,8 @@ app.use('/api/chat/groups', groupRoutes)
 app.use('/api/ai/chatbot', chatbotRoutes)
 app.use('/api/progress', progressRoutes)
 app.use('/api/board', boardRoutes)
+
+app.use(notFoundHandler)   // must come after all routes
+app.use(errorHandler)      // must be the very last app.use() for express to recognize it as the global error handler
 
 export default app;

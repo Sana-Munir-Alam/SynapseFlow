@@ -15,11 +15,11 @@ import { ChatPage } from './pages/ChatPage'
 const NotFoundPage = () => (
   <div className="flex flex-col items-center justify-center h-full min-h-[60vh]">
     <div className="text-center">
-      <h2 className="text-3xl font-bold text-gray-200 mb-4 px-20">404 - Page Not Found</h2>
+      <h2 className="text-3xl font-bold text-gray-400 mb-4 px-20">404 - Page Not Found</h2>
       <p className="text-gray-400 mb-6">The page you are looking for doesn't exist or is under construction.</p>
       <Link
         to="/dashboard"
-        className="inline-block px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors"
+        className="inline-block px-6 py-2 bg-[#6B8E23] hover:bg-[#556B2F] text-white font-semibold rounded-lg shadow-md transition-all duration-200"
       >
         Back to Dashboard
       </Link>
@@ -74,5 +74,9 @@ const router = createBrowserRouter([
 const App = () => {
   return <RouterProvider router={router} />
 }
+
+// const App = () => {
+//   throw new Error('TEST: React Error Boundary works')
+// }
 
 export default App
