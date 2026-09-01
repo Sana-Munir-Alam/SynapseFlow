@@ -13,5 +13,5 @@
     "jsx": "react-jsx" // Enable JSX for React email templates
   },
   "include": ["src/**/*", "src/types/**/*.d.ts"],
-  "exclude": ["node_modules"] // Which files to ignore
+  "exclude": ["node_modules",  "src/**/*.test.ts"] // Which files to ignore
 }
