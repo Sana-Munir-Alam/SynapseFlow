@@ -5,6 +5,7 @@ import { completeFlashcardSession, getCourseById, getCourseCounts, getCoursesByU
 import { deleteEmbeddingsByFile, extractTextFromPdf, extractTextFromDocx, generateChunks, generateEmbeddings, storeEmbeddingsIntoDB } from '../utils/rag.utils'
 import { extractTextFromFile, generateFlashcardsFromText, generateMcqsFromText } from '../services/handlers/ai-notes'
 import { emitProgressStale } from '../lib/emitProgressStale'
+import { verifyPdfOrDocxSignature } from '../utils/fileSignature.utils'
 
 // ---- Helpers --------------------------------------------------------------
 
@@ -148,16 +149,37 @@ export const getFile = async (req: Request, res: Response) => {
 export const uploadFile = async (req: Request, res: Response) => {
     const multerFile = (req as any).file
     if (!multerFile) return res.status(400).json({ message: 'No file uploaded' })
-        
+
+    const fullFilePath = path.join(process.cwd(), 'uploads', multerFile.filename)
+
+    const isPdf = multerFile.mimetype === 'application/pdf'
+    const isDocx =
+        multerFile.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        multerFile.originalname.toLowerCase().endsWith('.docx')
+
+    // Reject anything that isn't PDF/DOCX immediately — before the DB is touched.
+    if (!isPdf && !isDocx) {
+        if (fs.existsSync(fullFilePath)) fs.unlinkSync(fullFilePath)
+        return res.status(400).json({ message: 'Unsupported file format. Please upload a PDF or DOCX file.' })
+    }
+
+    // Confirm the bytes on disk actually are what they claim to be.
+    if (!verifyPdfOrDocxSignature(fullFilePath, isPdf)) {
+        if (fs.existsSync(fullFilePath)) fs.unlinkSync(fullFilePath)
+        return res.status(400).json({ message: 'File content does not match its declared type' })
+    }
+
     try {
         const userId = req.user!.id
         const courseId = req.params.courseId as string
 
         const course = await getCourseById(courseId, userId)
-        if (!course) return res.status(404).json({ message: 'Course not found' })
+        if (!course) {
+            if (fs.existsSync(fullFilePath)) fs.unlinkSync(fullFilePath)
+            return res.status(404).json({ message: 'Course not found' })
+        }
 
-
-                const file = await insertFile({
+        const file = await insertFile({
             courseId,
             originalName: multerFile.originalname,
             storagePath:  `/uploads/${multerFile.filename}`,
@@ -165,38 +187,45 @@ export const uploadFile = async (req: Request, res: Response) => {
             sizeBytes:    multerFile.size,
         })
 
-        const fullFilePath = path.join(process.cwd(), 'uploads', multerFile.filename);
-        
-        let text = '';
-        if (multerFile.mimetype === 'application/pdf') {
-            text = await extractTextFromPdf(fullFilePath);
-        } else if (
-            multerFile.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
-            multerFile.originalname.toLowerCase().endsWith('.docx')
-        ) {
-            text = await extractTextFromDocx(fullFilePath);
-        } else {
-            throw new Error("Unsupported file format for extraction");
-        }
-        const chunks = await generateChunks(text)
-
-        console.log("CHUNKS LENGTH: ", chunks.length);
-        
-        const embeddings = await generateEmbeddings(chunks);
-
-        await storeEmbeddingsIntoDB({ chunks, embeddings, fileId: file.id });
-
-        console.log("EMBEDDINGS STORED SUCCESSFULLY");
-
         await touchCourse(courseId, userId)
-
         emitProgressStale(userId)
 
-        return res.status(201).json(file)
+        // File is validated, saved, and recorded — this is a real success.
+        // Nothing below this line should be able to turn it into a reported failure.
+        res.status(201).json(file)
+
+        // Chunking + embeddings run after the response. If Gemini rate-limits
+        // or errors here, it's logged and the upload stands — the file stays
+        // usable for download/preview/flashcards either way.
+        processEmbeddingsInBackground(fullFilePath, isPdf, file.id, multerFile.originalname)
+
     } catch (err) {
-        console.error(err)
-        fs.unlinkSync(path.join(process.cwd(), 'uploads', multerFile.filename))
-        return res.status(500).json({ message: 'Failed to upload file' })
+        console.error('UPLOAD ERROR:', err)
+        if (fs.existsSync(fullFilePath)) fs.unlinkSync(fullFilePath)
+        if (!res.headersSent) {
+            return res.status(500).json({ message: 'Failed to upload file' })
+        }
+    }
+}
+
+async function processEmbeddingsInBackground(
+    fullFilePath: string,
+    isPdf: boolean,
+    fileId: string,
+    originalName: string
+) {
+    try {
+        const text = isPdf
+            ? await extractTextFromPdf(fullFilePath)
+            : await extractTextFromDocx(fullFilePath)
+
+        const chunks = await generateChunks(text)
+        const embeddings = await generateEmbeddings(chunks)
+        await storeEmbeddingsIntoDB({ chunks, embeddings, fileId })
+
+        console.log(`[embeddings] stored ${chunks.length} chunks for "${originalName}" (${fileId})`)
+    } catch (err) {
+        console.error(`[embeddings] failed for "${originalName}" (${fileId}):`, err)
     }
 }
 
