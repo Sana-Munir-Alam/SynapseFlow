@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "rootDir": "./src", // Where your source files are
+    "outDir": "./dist", // Where compiled JS goes
+    "module": "commonjs", // Output format (require/module.exports)
+    "target": "es2022", // JS version to compile to (modern)
+    "esModuleInterop": true, // Allows `import x from 'y'` syntax with CommonJS modules
+    "strict": true, // Enables all strict type-checking
+    "skipLibCheck": true, // Skips type-checking .d.ts files (faster builds)
+    "moduleResolution": "node", // How TS finds modules (modern standard)
+    "resolveJsonModule": true, // Allows importing .json files
+    "forceConsistentCasingInFileNames": true, // Prevents case-sensitivity bugs
+    "jsx": "react-jsx" // Enable JSX for React email templates
+  },
+  "include": ["src/**/*", "src/types/**/*.d.ts"],
+  "exclude": ["node_modules"] // Which files to ignore
+}
