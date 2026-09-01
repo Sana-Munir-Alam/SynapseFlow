@@ -74,7 +74,7 @@ export const useUploadFile = (courseId: string) => {
             qc.invalidateQueries({ queryKey: ['courses'] })
             toast.success(`${data.originalName} uploaded`)
         },
-        onError: () => toast.error('Upload failed'),
+        onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Upload failed')
     })
 }
 
