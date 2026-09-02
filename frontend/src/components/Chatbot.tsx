@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { X, Bot, SendHorizontal } from 'lucide-react'
+import { X, Bot, SendHorizontal, Copy, Check, Volume2, Square } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
@@ -22,6 +22,7 @@ const Chatbot = ({ messages, isStreaming, onSendMessage, isChatWindowOpen = fals
     const [isOpen, setIsOpen] = useState(false)
     const [input, setInput] = useState('')
     const [chatWithDocs, setChatWithDocs] = useState(false)
+    const [copiedMessageId, setCopiedMessageId] = useState<string | number | null>(null)
     const endRef = useRef<HTMLDivElement | null>(null)
 
     useEffect(() => {
@@ -51,6 +52,22 @@ const Chatbot = ({ messages, isStreaming, onSendMessage, isChatWindowOpen = fals
 
         onSendMessage(content, chatWithDocs)
         setInput('')
+    }
+
+    const handleCopy = async (messageId: string | number, content: string) => {
+        try {
+            await navigator.clipboard.writeText(content)
+
+            setCopiedMessageId(messageId)
+
+            window.setTimeout(() => {
+                setCopiedMessageId((currentId) =>
+                    currentId === messageId ? null : currentId
+                )
+            }, 1800)
+        } catch (error) {
+            console.error('Failed to copy message:', error)
+        }
     }
 
     return (
@@ -103,22 +120,46 @@ const Chatbot = ({ messages, isStreaming, onSendMessage, isChatWindowOpen = fals
                                         className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
                                     >
                                         <div
-                                            className={`max-w-[85%] px-3.5 py-2.5 text-[13px] leading-relaxed rounded-2xl border ${isUser
-                                                ? 'rounded-br-sm bg-[#1A1A1A] text-white/90 border-[#ffffff10]'
-                                                : 'rounded-bl-sm bg-[#0B0B0B] text-white/80 border-[#1F1F1F] shadow-sm'
+                                            className={`max-w-[85%] text-[13px] leading-relaxed rounded-2xl border ${isUser
+                                                ? 'rounded-br-sm bg-[#1A1A1A] text-white/90 border-[#ffffff10] px-3.5 py-2.5'
+                                                : 'rounded-bl-sm bg-[#0B0B0B] text-white/80 border-[#1F1F1F] shadow-sm px-3.5 py-2.5'
                                                 }`}
                                         >
                                             {isUser ? (
                                                 <span className="whitespace-pre-wrap wrap-break-word">{message.content}</span>
                                             ) : (
-                                                <div className="prose prose-sm prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0">
-                                                    <ReactMarkdown
-                                                        remarkPlugins={[remarkMath]}
-                                                        rehypePlugins={[rehypeKatex]}
-                                                    >
-                                                        {message.content}
-                                                    </ReactMarkdown>
-                                                </div>
+                                                <>
+                                                    <div className="prose prose-sm prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0">
+                                                        <ReactMarkdown
+                                                            remarkPlugins={[remarkMath]}
+                                                            rehypePlugins={[rehypeKatex]}
+                                                        >
+                                                            {message.content}
+                                                        </ReactMarkdown>
+                                                    </div>
+
+                                                    <div className="mt-2 flex items-center gap-1 border-t border-[#ffffff08] pt-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleCopy(message.id, message.content)}
+                                                            className="flex h-7 items-center gap-1 rounded-md px-2 text-[11px] text-white/45 transition hover:bg-white/8 hover:text-white/90 cursor-pointer"
+                                                            aria-label={copiedMessageId === message.id ? 'Message copied' : 'Copy AI response'}
+                                                            title={copiedMessageId === message.id ? 'Copied!' : 'Copy response'}
+                                                        >
+                                                            {copiedMessageId === message.id ? (
+                                                                <>
+                                                                    <Check size={13} />
+                                                                    <span>Copied</span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Copy size={13} />
+                                                                    <span>Copy</span>
+                                                                </>
+                                                            )}
+                                                        </button>
+                                                    </div>
+                                                </>
                                             )}
                                         </div>
                                     </motion.div>
@@ -144,12 +185,10 @@ const Chatbot = ({ messages, isStreaming, onSendMessage, isChatWindowOpen = fals
                                     </div>
                                 </div>
                             )}
-
                             <div ref={endRef} />
                         </div>
 
                         <div className="p-3 border-t border-[#1F1F1F] bg-[#0B0B0B]/50 flex flex-col gap-3">
-
                             <motion.button
                                 type="button"
                                 onClick={() => setChatWithDocs(!chatWithDocs)}
@@ -208,8 +247,6 @@ const Chatbot = ({ messages, isStreaming, onSendMessage, isChatWindowOpen = fals
                     </motion.div>
                 )}
             </AnimatePresence>
-
-
 
             {
                 !isOpen && (
