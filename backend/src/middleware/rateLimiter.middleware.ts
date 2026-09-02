@@ -1,4 +1,4 @@
-import rateLimit from 'express-rate-limit'
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
 
 export const authRateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -11,10 +11,10 @@ export const authRateLimiter = rateLimit({
         if (typeof forwarded === 'string') {
             return forwarded.split(',')[0].trim()
         }
-        return req.ip ?? 'unknown'
+        return ipKeyGenerator(req.ip ?? 'unknown')
     },
 
     message: {
-        message: 'Too many attempts. Please try again in a few minutes.'
+        message: 'Too many attempts. Please try again in a few minutes.',
     },
 })
