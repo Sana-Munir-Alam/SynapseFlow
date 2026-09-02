@@ -1,6 +1,6 @@
 import { and, eq, gte, lte, lt, inArray } from 'drizzle-orm'
 import db from '../../db/connection'
-import { events, notifications, studyPlans, studyPlanCourses, studyPlanSchedule, studyPlanLogDays } from '../../db/schema'
+import { events, notifications, studyPlans, studyPlanCourses, studyPlanSchedule, studyPlanLogDays, users, } from '../../db/schema'
 import type { NewEvent } from '../../db/schema/event.schema'
 import type { DayStatus } from '../../db/schema/study_plan_log.schema'
 
@@ -29,6 +29,41 @@ export const getEventsDueTomorrow = async () => {
     const start = new Date(tomorrow.setHours(0, 0, 0, 0))
     const end   = new Date(tomorrow.setHours(23, 59, 59, 999))
     return db.select().from(events).where(and(gte(events.date, start), lte(events.date, end)))
+}
+
+export const getEventsDueTomorrowWithUsers = async () => {
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+
+    const start = new Date(tomorrow.setHours(0, 0, 0, 0))
+    const end = new Date(tomorrow.setHours(23, 59, 59, 999))
+
+    return db
+        .select({
+            id: events.id,
+            userId: events.userId,
+            title: events.title,
+            course: events.course,
+            type: events.type,
+            priority: events.priority,
+            date: events.date,
+            time: events.time,
+
+            email: users.email,
+            firstName: users.firstName,
+            username: users.username,
+        })
+        .from(events)
+        .innerJoin(
+            users,
+            eq(events.userId, users.id)
+        )
+        .where(
+            and(
+                gte(events.date, start),
+                lte(events.date, end)
+            )
+        )
 }
 
 // ---- Study Plans ----------------------------------------------------------
@@ -297,8 +332,11 @@ export const getNotificationsWithEventDetails = async (userId: string) => {
     }))
 }
 
-export const insertNotification = async (userId: string, message: string, eventId?: string) => {
-    const [created] = await db.insert(notifications).values({ userId, message, eventId }).returning()
+export const insertNotification = async (userId: string, message: string, options?: {eventId?: string, studyPlanLogId?: string}) => {
+    const [created] = await db
+        .insert(notifications)
+        .values({userId, message, eventId: options?.eventId, studyPlanLogId: options?.studyPlanLogId,})
+        .returning()
     return created
 }
 
@@ -309,6 +347,24 @@ export const notificationExistsForEventToday = async (eventId: string): Promise<
         .select()
         .from(notifications)
         .where(and(eq(notifications.eventId, eventId), gte(notifications.createdAt, startOfDay)))
+    return results.length > 0
+}
+
+/**
+ * Returns true when this exact study-plan session has already generated
+ * a notification.
+ *
+ * This prevents the daily cron job from repeatedly emailing the student
+ * about the same missed session.
+ */
+export const notificationExistsForStudyPlanLog = async (studyPlanLogId: string): Promise<boolean> => {
+    const results = await db
+        .select({id: notifications.id,})
+        .from(notifications)
+        .where(
+            eq(notifications.studyPlanLogId, studyPlanLogId)
+        )
+
     return results.length > 0
 }
 
@@ -333,7 +389,81 @@ export const removeAllNotifications = async (userId: string) => {
     await db.delete(notifications).where(eq(notifications.userId, userId))
 }
 
+export type BehindStudyPlanSession = {
+    id: string
+    userId: string
+    email: string
+    firstName: string | null
+    username: string | null
+    course: string
+    weekStart: Date
+    dayOfWeek: number
+    scheduledHours: string
+    status: 'missed' | 'less_than' | null
+}
+
 // ---- Study Plan Logs ------------------------------------------------------
+
+/**
+ * Returns study-plan sessions from the recent past where the student
+ * explicitly marked the session as missed or completed less than planned.
+ *
+ * The job uses these rows to notify students that they are falling behind.
+ */
+export const getBehindStudyPlanSessions = async (daysBack = 3): Promise<BehindStudyPlanSession[]> => {
+    const now = new Date()
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() - daysBack)
+
+    const rows = await db
+        .select({
+            id: studyPlanLogDays.id,
+            userId: studyPlans.userId,
+
+            email: users.email,
+            firstName: users.firstName,
+            username: users.username,
+            course: studyPlanCourses.course,
+
+            weekStart: studyPlanLogDays.weekStart,
+            dayOfWeek: studyPlanLogDays.dayOfWeek,
+            scheduledHours: studyPlanLogDays.scheduledHours,
+            status: studyPlanLogDays.status,
+        })
+        .from(studyPlanLogDays)
+        .innerJoin(
+            studyPlanCourses,
+            eq(studyPlanLogDays.studyPlanCourseId, studyPlanCourses.id)
+        )
+        .innerJoin(
+            studyPlans,
+            eq(studyPlanCourses.studyPlanId, studyPlans.id)
+        )
+        .innerJoin(
+            users,
+            eq(studyPlans.userId, users.id)
+        )
+        .where(
+            and(
+                gte(
+                    studyPlanLogDays.updatedAt,
+                    cutoff
+                ),
+                lt(
+                    studyPlanLogDays.updatedAt,
+                    now
+                ),
+                inArray(
+                    studyPlanLogDays.status,
+                    ['missed', 'less_than']
+                )
+            )
+        )
+
+    return rows.filter((row): row is BehindStudyPlanSession =>
+        row.status === 'missed' ||  row.status === 'less_than'
+    )
+}
 
 /** Returns the Monday of the current week at 00:00:00 UTC. */
 export const getCurrentWeekStart = (): Date => {
