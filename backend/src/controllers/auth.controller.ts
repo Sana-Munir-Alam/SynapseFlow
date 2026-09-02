@@ -67,12 +67,6 @@ export const register = async (req: Request<any, any, newUser>, res: Response) =
 }
 
 export const login = async (req: Request, res: Response) => {
-    console.log({
-        ip: req.ip,
-        ips: req.ips,
-        xForwardedFor: req.headers['x-forwarded-for'],
-        xRealIp: req.headers['x-real-ip'],
-    });
     try {
         const { email, password } = req.body
         const existingUser = await checkExistingUser(email)
