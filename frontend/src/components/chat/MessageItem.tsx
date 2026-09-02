@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useDeleteForMe, useDeleteForEveryone } from '../../hooks/useMessages';
-import { Bot } from 'lucide-react';
+import { Bot, Copy, Check, Volume2, Square,} from 'lucide-react';
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import { motion, AnimatePresence } from 'motion/react';
+import { extractReadableText,} from '../../utils/readAloud.utils';
 
 interface Sender {
   id: string;
@@ -33,6 +34,11 @@ interface Props {
 
 export const MessageItem = ({ message, groupId, currentUserId, isAdmin }: Props) => {
   const [showOptions, setShowOptions] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
+  const activeSpeechRef = useRef(false);
+
   const deleteMe = useDeleteForMe(groupId);
   const deleteEveryone = useDeleteForEveryone(groupId);
 
@@ -40,6 +46,70 @@ export const MessageItem = ({ message, groupId, currentUserId, isAdmin }: Props)
   const senderUsername = message.sender?.username ?? 'Unknown user';
   const isOwn = senderId === currentUserId;
   const isDeleted = !!message.deletedAt;
+  const isAIMessage = message.senderType === 'ai';
+
+  useEffect(() => {
+    return () => {
+      activeSpeechRef.current = false;
+      window.speechSynthesis.cancel();
+    };
+  }, []);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(message.content);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch (error) {
+      console.error('Failed to copy message:', error);
+    }
+  };
+
+  const stopSpeaking = () => {
+    activeSpeechRef.current = false;
+    window.speechSynthesis.cancel();
+    setIsSpeaking(false);
+  };
+
+  const handleReadAloud = () => {
+    if (!('speechSynthesis' in window)) {
+      console.error('Speech synthesis is not supported in this browser.');
+      return;
+    }
+
+    if (activeSpeechRef.current) {
+      stopSpeaking();
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+
+    const readableText = extractReadableText(message.content);
+    if (!readableText) return;
+
+    const utterance = new SpeechSynthesisUtterance(readableText);
+    utterance.rate = 0.95;
+    utterance.pitch = 1;
+
+    activeSpeechRef.current = true;
+    setIsSpeaking(true);
+
+    utterance.onend = () => {
+      if (activeSpeechRef.current) {
+        activeSpeechRef.current = false;
+        setIsSpeaking(false);
+      }
+    };
+
+    utterance.onerror = () => {
+      if (activeSpeechRef.current) {
+        activeSpeechRef.current = false;
+        setIsSpeaking(false);
+      }
+    };
+
+    window.speechSynthesis.speak(utterance);
+  };
 
   if (message.isSystem) {
     return (
@@ -96,6 +166,48 @@ export const MessageItem = ({ message, groupId, currentUserId, isAdmin }: Props)
             </ReactMarkdown>
           )}
         </div>
+
+        {isAIMessage && !isDeleted && (
+          <div className="mt-1.5 flex items-center gap-1">
+            <button
+                type="button"
+                onClick={handleCopy}
+                className="flex items-center gap-1 rounded-md px-2 py-1 text-[10px] text-[var(--text-faint)] transition hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)] cursor-pointer"
+                aria-label={copied ? 'Message copied' : 'Copy AI response'}
+            >
+              {copied ? (
+                <>
+                  <Check size={12} />
+                  <span>Copied</span>
+                </>
+              ) : (
+                <>
+                  <Copy size={12} />
+                  <span>Copy</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleReadAloud}
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-[10px] text-[var(--text-faint)] transition hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)] cursor-pointer"
+              aria-label={isSpeaking ? 'Stop reading' : 'Read AI response aloud'}
+            >
+              {isSpeaking ? (
+                <>
+                    <Square size={10} />
+                    <span>Stop</span>
+                </>
+              ) : (
+                <>
+                    <Volume2 size={12} />
+                    <span>Read aloud</span>
+                </>
+              )}
+            </button>
+          </div>
+      )}
 
         {/* Timestamp */}
         <span className="text-[10px] font-medium tracking-wide text-[var(--text-faint)] mt-1.5 mx-1">

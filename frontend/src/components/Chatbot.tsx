@@ -4,6 +4,7 @@ import { X, Bot, SendHorizontal, Copy, Check, Volume2, Square } from 'lucide-rea
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
+import { extractReadableText } from '../utils/readAloud.utils'
 
 type ChatMessage = {
     id: string | number
@@ -23,7 +24,9 @@ const Chatbot = ({ messages, isStreaming, onSendMessage, isChatWindowOpen = fals
     const [input, setInput] = useState('')
     const [chatWithDocs, setChatWithDocs] = useState(false)
     const [copiedMessageId, setCopiedMessageId] = useState<string | number | null>(null)
+    const [speakingMessageId, setSpeakingMessageId] = useState<string | number | null>(null)
     const endRef = useRef<HTMLDivElement | null>(null)
+    const activeSpeechIdRef = useRef<string | number | null>(null)
 
     useEffect(() => {
         endRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -35,6 +38,22 @@ const Chatbot = ({ messages, isStreaming, onSendMessage, isChatWindowOpen = fals
                 endRef.current?.scrollIntoView({ behavior: 'instant' })
             }, 50)
             return () => clearTimeout(timeout)
+        }
+    }, [isOpen])
+
+    // Stop speech synthesis when the chatbot is closed. This is a safety measure to ensure that speech synthesis is stopped when the chatbot is closed, even if the user forgets to stop it manually.
+    useEffect(() => {
+        return () => {
+            activeSpeechIdRef.current = null
+            window.speechSynthesis.cancel()
+        }
+    }, [])
+
+    useEffect(() => {
+        if (!isOpen) {
+            activeSpeechIdRef.current = null
+            window.speechSynthesis.cancel()
+            setSpeakingMessageId(null)
         }
     }, [isOpen])
 
@@ -57,9 +76,7 @@ const Chatbot = ({ messages, isStreaming, onSendMessage, isChatWindowOpen = fals
     const handleCopy = async (messageId: string | number, content: string) => {
         try {
             await navigator.clipboard.writeText(content)
-
             setCopiedMessageId(messageId)
-
             window.setTimeout(() => {
                 setCopiedMessageId((currentId) =>
                     currentId === messageId ? null : currentId
@@ -68,6 +85,64 @@ const Chatbot = ({ messages, isStreaming, onSendMessage, isChatWindowOpen = fals
         } catch (error) {
             console.error('Failed to copy message:', error)
         }
+    }
+
+    const stopSpeaking = () => {
+        activeSpeechIdRef.current = null
+        window.speechSynthesis.cancel()
+        setSpeakingMessageId(null)
+    }
+
+    const handleReadAloud = (messageId: string | number, content: string) => {
+        if (!('speechSynthesis' in window)) {
+            console.error('Speech synthesis is not supported in this browser.')
+            return
+        }
+
+        // Clicking the currently spoken message stops it.
+        if (activeSpeechIdRef.current === messageId) {
+            stopSpeaking()
+            return
+        }
+
+        // Invalidate the old speech before cancelling it.
+        activeSpeechIdRef.current = null
+
+        // Stop any other message before starting a new one.
+        window.speechSynthesis.cancel()
+        const readableText = extractReadableText(content)
+
+        if (!readableText) {return}
+
+        const utterance = new SpeechSynthesisUtterance(readableText)
+        utterance.rate = 0.95
+        utterance.pitch = 1
+
+        // Mark this message as the currently active speech.
+        activeSpeechIdRef.current = messageId
+        setSpeakingMessageId(messageId)
+
+        utterance.onend = () => {
+            // Only clear state if THIS utterance is still the active one.
+            if (activeSpeechIdRef.current === messageId) {
+                activeSpeechIdRef.current = null
+                setSpeakingMessageId(null)
+            }
+        }
+        utterance.onerror = () => {
+            if (activeSpeechIdRef.current === messageId) {
+                activeSpeechIdRef.current = null
+                setSpeakingMessageId(null)
+            }
+        }
+        window.speechSynthesis.speak(utterance)
+    }
+
+    // Expllicitly stop speech synthesis when the chatbot is closed.
+    const handleCloseChatbot = () => {
+        window.speechSynthesis.cancel()
+        setSpeakingMessageId(null)
+        setIsOpen(false)
     }
 
     return (
@@ -99,7 +174,7 @@ const Chatbot = ({ messages, isStreaming, onSendMessage, isChatWindowOpen = fals
 
                             <button
                                 type="button"
-                                onClick={() => setIsOpen(false)}
+                                onClick={handleCloseChatbot}
                                 className="rounded-md p-1.5 cursor-pointer text-white/40 transition hover:bg-white/10 hover:text-white/90 duration-300"
                                 aria-label="Close chatbot"
                             >
@@ -155,6 +230,25 @@ const Chatbot = ({ messages, isStreaming, onSendMessage, isChatWindowOpen = fals
                                                                 <>
                                                                     <Copy size={13} />
                                                                     <span>Copy</span>
+                                                                </>
+                                                            )}
+                                                        </button>
+
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>handleReadAloud(message.id, message.content)}
+                                                            className="flex h-7 items-center gap-1 rounded-md px-2 text-[11px] text-white/45 transition hover:bg-white/8 hover:text-white/90 cursor-pointer"
+                                                            aria-label={speakingMessageId === message.id ? 'Stop reading' : 'Read AI response aloud'}
+                                                        >
+                                                            {speakingMessageId === message.id ? (
+                                                                <>
+                                                                    <Square size={11} />
+                                                                    <span>Stop</span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Volume2 size={13} />
+                                                                    <span>Read aloud</span>
                                                                 </>
                                                             )}
                                                         </button>
