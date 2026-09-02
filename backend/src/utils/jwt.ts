@@ -9,7 +9,7 @@ type JwtPayload = {
 
 export const generateToken = (payload: JwtPayload): string => {
     const secret = env.JWT_SECRET
-    const expiry = env.JWT_EXPIRY as jwt.SignOptions['expiresIn']
+    const expiry = env.ACCESS_TOKEN_EXPIRY as jwt.SignOptions['expiresIn'] 
 
     return jwt.sign(payload, secret, { expiresIn: expiry })
 }

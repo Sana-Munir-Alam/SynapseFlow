@@ -1,6 +1,4 @@
-import {
-    pgTable, uuid, varchar, timestamp
-} from 'drizzle-orm/pg-core'
+import { pgTable, uuid, varchar, timestamp } from 'drizzle-orm/pg-core'
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
 import users from './user.schema'
 
@@ -19,4 +17,3 @@ export const insertTokenSchema = createInsertSchema(reset_tokens)
 export const selectTokenSchema = createSelectSchema(reset_tokens)
 
 export default reset_tokens
-

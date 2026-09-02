@@ -11,6 +11,8 @@ const envSchema = z.object({
     DATABASE_URL:                 z.string().startsWith("postgresql://"),
     JWT_SECRET:                   z.string().min(32),
     JWT_EXPIRY:                   z.string().default('7d'),
+    ACCESS_TOKEN_EXPIRY:          z.string().default('15m'),
+    REFRESH_TOKEN_EXPIRY_DAYS:    z.coerce.number().positive().default(30),
     BCRYPT_ROUNDS:                z.coerce.number().min(6).max(12).default(8),
     RESEND_API_KEY:               z.string(),
     GOOGLE_GENERATIVE_AI_API_KEY: z.string(),
