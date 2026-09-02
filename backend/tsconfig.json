@@ -7,7 +7,7 @@
     "esModuleInterop": true, // Allows `import x from 'y'` syntax with CommonJS modules
     "strict": true, // Enables all strict type-checking
     "skipLibCheck": true, // Skips type-checking .d.ts files (faster builds)
-    "moduleResolution": "node", // How TS finds modules (modern standard)
+    // "moduleResolution": "node", // How TS finds modules (modern standard)
     "resolveJsonModule": true, // Allows importing .json files
     "forceConsistentCasingInFileNames": true, // Prevents case-sensitivity bugs
     "jsx": "react-jsx" // Enable JSX for React email templates
