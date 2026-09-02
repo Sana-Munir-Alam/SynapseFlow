@@ -6,6 +6,7 @@ import { deleteEmbeddingsByFile, extractTextFromPdf, extractTextFromDocx, genera
 import { extractTextFromFile, generateFlashcardsFromText, generateMcqsFromText } from '../services/handlers/ai-notes'
 import { emitProgressStale } from '../lib/emitProgressStale'
 import { verifyPdfOrDocxSignature } from '../utils/fileSignature.utils'
+import { buildContentDisposition } from '../utils/contentDisposition.utils'
 
 // ---- Helpers --------------------------------------------------------------
 
@@ -149,6 +150,10 @@ export const getFile = async (req: Request, res: Response) => {
 export const uploadFile = async (req: Request, res: Response) => {
     const multerFile = (req as any).file
     if (!multerFile) return res.status(400).json({ message: 'No file uploaded' })
+    
+    // Multer decodes multipart filenames as latin1 by default, but browsers
+    // send them as UTF-8 — this re-interprets the bytes correctly.
+    multerFile.originalname = Buffer.from(multerFile.originalname, 'latin1').toString('utf8')
 
     const fullFilePath = path.join(process.cwd(), 'uploads', multerFile.filename)
 
@@ -257,9 +262,9 @@ export const previewFile = async (req: Request, res: Response) => {
 
         const fullPath = path.join(process.cwd(), file.storagePath)
         if (!fs.existsSync(fullPath)) return res.status(404).json({ message: 'File missing from storage' })
-
+        
         res.setHeader('Content-Type', file.mimeType)
-        res.setHeader('Content-Disposition', `inline; filename="${file.originalName}"`)
+        res.setHeader('Content-Disposition', buildContentDisposition(file.originalName, 'inline'))
 
         return res.sendFile(fullPath)
     } catch (err) {
