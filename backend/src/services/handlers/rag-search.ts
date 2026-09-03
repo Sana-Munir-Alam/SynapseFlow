@@ -1,18 +1,27 @@
 import { AIMessageType, fetchGeminiTextResponse, executeAITaskWithSocketUpdates } from "../../utils/ai-chatbot.utils";
 import { semanticSearch } from "../../utils/rag.utils";
+import { getCachedRAGResponse, setCachedRAGResponse, normalizeQuery } from '../dal/chatbot.dal'
 
 
 export async function handleDocumentRAGRequest(userId: string, query: string, groupId?: string) {
     try {
         const response = await executeAITaskWithSocketUpdates(groupId, async () => {
+            const normalizedQuery = normalizeQuery(query)
+
             const relevantChunks = await semanticSearch({ query, userId, limit: 5 });
+            const fileIds = relevantChunks.map((chunk: any) => chunk.fileId)
+
+            const cached = await getCachedRAGResponse(userId, normalizedQuery, fileIds)
+            if (cached) return cached
 
             const sysPrompt = buildRAGSystemPrompt(relevantChunks);
             const messages: AIMessageType[] = [{ role: 'user', content: query }]
-            const response = await fetchGeminiTextResponse(messages, sysPrompt);
-            return response;
-        });
+            const freshResponse = await fetchGeminiTextResponse(messages, sysPrompt);
 
+            await setCachedRAGResponse(userId, normalizedQuery, fileIds, freshResponse)
+            console.log(cached ? '[RAG cache] HIT' : '[RAG cache] MISS')
+            return freshResponse
+        });
         return response;
     } catch (err) {
         console.error(err)
