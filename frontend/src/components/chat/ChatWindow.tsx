@@ -5,6 +5,7 @@ import { useAITyping } from '../../hooks/useAITyping';
 import { Bot, ChevronLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Whiteboard from '../Whiteboard';
+import { useBandwidth } from '../../contexts/BandwidthContext'
 
 interface Props {
   groupId: string;
@@ -38,6 +39,8 @@ interface MessagesWindowProps {
 export const ChatWindow = ({ groupId, groupName, currentUserId, currentUserName, currentUserColor, isAdmin, onlineCount, onBack }: Props) => {
   const [input, setInput] = useState('');
   const [showWhiteboard, setShowWhiteboard] = useState(false);
+  const [confirmWhiteboardOpen, setConfirmWhiteboardOpen] = useState(false);
+  const { lowBandwidth } = useBandwidth();
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -90,6 +93,18 @@ export const ChatWindow = ({ groupId, groupName, currentUserId, currentUserName,
     }
   };
 
+  const handleWhiteboardButtonClick = () => {
+    if (showWhiteboard) {
+      setShowWhiteboard(false)
+      return
+    }
+    if (lowBandwidth) {
+      setConfirmWhiteboardOpen(true)
+      return
+    }
+    setShowWhiteboard(true)
+  }
+
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center text-[var(--text-faint)]">
@@ -102,30 +117,48 @@ export const ChatWindow = ({ groupId, groupName, currentUserId, currentUserName,
     <div className="flex flex-col h-full bg-[var(--bg-page)]">
       {/* Header */}
       <div className='flex justify-between items-center border-b border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3'>
-      <div className="flex items-center gap-3">
-        {onBack && (
-          <button 
-            onClick={onBack}
-            className="md:hidden flex items-center justify-center p-2 -ml-2 rounded-lg text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)] transition-colors shrink-0"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-        )}
-        <div className="w-9 h-9 rounded-full bg-[var(--text-primary)] flex items-center justify-center text-[var(--bg-page)] font-semibold text-sm shrink-0">
-          {groupName[0].toUpperCase()}
+        <div className="flex items-center gap-3">
+          {onBack && (
+            <button 
+              onClick={onBack}
+              className="md:hidden flex items-center justify-center p-2 -ml-2 rounded-lg text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)] transition-colors shrink-0"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+          )}
+          <div className="w-9 h-9 rounded-full bg-[var(--text-primary)] flex items-center justify-center text-[var(--bg-page)] font-semibold text-sm shrink-0">
+            {groupName[0].toUpperCase()}
+          </div>
+          <div className="flex flex-col min-w-0">
+            <span className="font-medium text-[var(--text-primary)] truncate">{groupName}</span>
+            <span className="text-xs text-[var(--text-muted)] font-medium">{onlineCount} online</span>
+          </div>
         </div>
-        <div className="flex flex-col min-w-0">
-          <span className="font-medium text-[var(--text-primary)] truncate">{groupName}</span>
-          <span className="text-xs text-[var(--text-muted)] font-medium">{onlineCount} online</span>
-        </div>
-      </div>
-      <div className="">
-        <button 
-          onClick={() => setShowWhiteboard(!showWhiteboard)}
-          className="text-xs font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)] transition-all cursor-pointer"
-        >
-            {showWhiteboard ? 'Back to Chat' : 'Open Whiteboard'}
-        </button>
+        <div className="">
+          {confirmWhiteboardOpen ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--text-muted)]">Whiteboard uses more data — open anyway?</span>
+              <button
+                onClick={() => { setConfirmWhiteboardOpen(false); setShowWhiteboard(true) }}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--accent)] text-white hover:opacity-90 transition-all cursor-pointer"
+              >
+                Open anyway
+              </button>
+              <button
+                onClick={() => setConfirmWhiteboardOpen(false)}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface)] transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleWhiteboardButtonClick}
+              className="text-xs font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)] transition-all cursor-pointer"
+            >
+                {showWhiteboard ? 'Back to Chat' : 'Open Whiteboard'}
+            </button>
+          )}
         </div>
       </div>
 
