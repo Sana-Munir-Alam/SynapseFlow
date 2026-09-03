@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { fetchEvents, createEvent, deleteEvent, fetchStudyPlan, saveStudyPlan, fetchNotifications, markNotificationRead, deleteNotification, deleteAllNotifications, fetchPlanLogs, savePlanLogs, deleteCourseData, generateAIStudyPlan, } from '../services/scheduler.service'
+import { useBandwidth } from '../contexts/BandwidthContext'
 
 // ---- Events ---------------------------------------------------------------
 
@@ -44,14 +45,17 @@ export const useSaveStudyPlan = () => {
 
 // ---- Notifications --------------------------------------------------------
 
-export const useNotifications = () =>
-  useQuery({
+export const useNotifications = () => {
+  const { lowBandwidth } = useBandwidth()
+  return useQuery({
     queryKey: ['notifications'],
     queryFn: fetchNotifications,
-    staleTime: 20 * 1000,
-    refetchInterval: 30 * 1000,
-    refetchIntervalInBackground: true,
+    staleTime: 60 * 1000,
+    // Sockets deliver new notifications live (see useNotificationSocket).
+    // This REST query now only runs on mount, plus on window refocus as a resync in case a socket event was missed while the tab was inactiveskipped in low-bandwidth mode, since sockets already cover the common case and an extra REST call on every refocus isn't free.
+    refetchOnWindowFocus: !lowBandwidth,
   })
+}
 
 export const useMarkNotificationRead = () => {
   const qc = useQueryClient()

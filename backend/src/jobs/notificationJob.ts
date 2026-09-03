@@ -1,19 +1,7 @@
-/**
- * notificationJob.ts
- *
- * Runs once per day (via node-cron or a simple setInterval at startup).
- * Finds all events due tomorrow and inserts a notification for each owner.
- *
- * Install: npm install node-cron
- * Types:   npm install -D @types/node-cron
- *
- * Wire it up in your main server entry point:
- *   import './jobs/notificationJob'
- */
-
 import cron from 'node-cron'
 import { getBehindStudyPlanSessions, getEventsDueTomorrowWithUsers, insertNotification, notificationExistsForEventToday, notificationExistsForStudyPlanLog, } from '../services/dal/scheduler.dal'
 import { sendImportantEventReminderEmail, sendStudyPlanBehindReminderEmail,} from '../utils/mailer'
+import { emitNewNotification } from '../lib/emitNewNotification'
 
 const IMPORTANT_EVENT_TYPES = new Set(['assignment', 'quiz', 'mid', 'final', 'project',])
 
@@ -51,14 +39,14 @@ const runDeadlineReminderJob = async () => {
         const message = `Reminder: "${event.title}" (${event.course}) is due tomorrow — ${dateStr}`
 
         // In-app notification.
-        await insertNotification(
+        const createdNotification = await insertNotification(
             event.userId,
             message,
             {
                 eventId: event.id,
             }
         )
-
+        emitNewNotification(event.userId, createdNotification)
         // Email for important academic events only.
         try {
             await sendImportantEventReminderEmail(
@@ -102,11 +90,12 @@ const runStudyPlanReminderJob = async () => {
             : `Study plan reminder: You completed less than your planned ${session.scheduledHours} hours for ${session.course}. Review your plan and get back on track.`
 
         // Create the in-app notification first.
-        await insertNotification(
+        const createdNotification = await insertNotification(
             session.userId,
             message,
             { studyPlanLogId: session.id,}
         )
+        emitNewNotification(session.userId, createdNotification)
 
         // Then attempt email. Email failure should not
         // remove or undo the in-app notification.
