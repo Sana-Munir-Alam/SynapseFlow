@@ -5,7 +5,9 @@ import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import { motion, AnimatePresence } from 'motion/react';
-import { extractReadableText,} from '../../utils/readAloud.utils';
+import { extractReadableText, detectSpeechLang } from '../../utils/readAloud.utils'
+import { playSpeechBlob, stopAllSpeech, getCurrentSpeakerId } from '../../utils/audioPlayer.utils'
+import { api } from '../../lib/axios'
 
 interface Sender {
   id: string;
@@ -36,8 +38,10 @@ export const MessageItem = ({ message, groupId, currentUserId, isAdmin }: Props)
   const [showOptions, setShowOptions] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isLoadingSpeech, setIsLoadingSpeech] = useState(false)
 
   const activeSpeechRef = useRef(false);
+  const speechRequestIdRef = useRef(0)
 
   const deleteMe = useDeleteForMe(groupId);
   const deleteEveryone = useDeleteForEveryone(groupId);
@@ -55,6 +59,12 @@ export const MessageItem = ({ message, groupId, currentUserId, isAdmin }: Props)
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (getCurrentSpeakerId() === message.id) stopAllSpeech()
+    }
+  }, [message.id])
+
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(message.content);
@@ -66,50 +76,33 @@ export const MessageItem = ({ message, groupId, currentUserId, isAdmin }: Props)
   };
 
   const stopSpeaking = () => {
-    activeSpeechRef.current = false;
-    window.speechSynthesis.cancel();
-    setIsSpeaking(false);
-  };
-
-  const handleReadAloud = () => {
-    if (!('speechSynthesis' in window)) {
-      console.error('Speech synthesis is not supported in this browser.');
-      return;
-    }
-
-    if (activeSpeechRef.current) {
-      stopSpeaking();
-      return;
-    }
-
-    window.speechSynthesis.cancel();
-
-    const readableText = extractReadableText(message.content);
-    if (!readableText) return;
-
-    const utterance = new SpeechSynthesisUtterance(readableText);
-    utterance.rate = 0.95;
-    utterance.pitch = 1;
-
-    activeSpeechRef.current = true;
-    setIsSpeaking(true);
-
-    utterance.onend = () => {
-      if (activeSpeechRef.current) {
-        activeSpeechRef.current = false;
-        setIsSpeaking(false);
+      stopAllSpeech()
+      activeSpeechRef.current = false
+      setIsSpeaking(false)
+  }
+  const handleReadAloud = async () => {
+      if (getCurrentSpeakerId() === message.id) { stopSpeaking(); return }
+      const readableText = extractReadableText(message.content)
+      if (!readableText) return
+      const requestId = ++speechRequestIdRef.current
+      const languageCode: 'en' | 'ur' = detectSpeechLang(readableText) === 'ur-PK' ? 'ur' : 'en'
+      setIsLoadingSpeech(true)
+      try {
+          const res = await api.post('/ai/chatbot/speech', { text: readableText, languageCode }, { responseType: 'blob' })
+          if (requestId !== speechRequestIdRef.current) return
+          activeSpeechRef.current = true
+          setIsSpeaking(true)
+          await playSpeechBlob(message.id, res.data, () => {
+              if (activeSpeechRef.current) { activeSpeechRef.current = false; setIsSpeaking(false) }
+          })
+      } catch (error) {
+          console.error('Failed to generate/play speech:', error)
+          activeSpeechRef.current = false
+          setIsSpeaking(false)
+      } finally {
+          setIsLoadingSpeech(false)
       }
-    };
-
-    utterance.onerror = () => {
-      if (activeSpeechRef.current) {
-        activeSpeechRef.current = false;
-        setIsSpeaking(false);
-      }
-    };
-
-    window.speechSynthesis.speak(utterance);
-  };
+  }
 
   if (message.isSystem) {
     return (
@@ -191,19 +184,16 @@ export const MessageItem = ({ message, groupId, currentUserId, isAdmin }: Props)
             <button
               type="button"
               onClick={handleReadAloud}
+              disabled={isLoadingSpeech}
               className="flex items-center gap-1 rounded-md px-2 py-1 text-[10px] text-[var(--text-faint)] transition hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)] cursor-pointer"
               aria-label={isSpeaking ? 'Stop reading' : 'Read AI response aloud'}
             >
-              {isSpeaking ? (
-                <>
-                    <Square size={10} />
-                    <span>Stop</span>
-                </>
+              {isLoadingSpeech ? (
+                  <><span className="h-2.5 w-2.5 rounded-full border-2 border-current border-t-transparent animate-spin" /><span>Loading</span></>
+              ) : isSpeaking ? (
+                  <><Square size={10} /><span>Stop</span></>
               ) : (
-                <>
-                    <Volume2 size={12} />
-                    <span>Read aloud</span>
-                </>
+                  <><Volume2 size={12} /><span>Read aloud</span></>
               )}
             </button>
           </div>

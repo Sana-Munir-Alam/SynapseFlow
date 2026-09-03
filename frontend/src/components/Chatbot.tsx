@@ -4,7 +4,8 @@ import { X, Bot, SendHorizontal, Copy, Check, Volume2, Square, Mic } from 'lucid
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
-import { extractReadableText } from '../utils/readAloud.utils'
+import { extractReadableText, detectSpeechLang } from '../utils/readAloud.utils'
+import { playSpeechBlob, stopAllSpeech, getCurrentSpeakerId } from '../utils/audioPlayer.utils'
 import { api } from '../lib/axios'
 
 type ChatMessage = {
@@ -27,8 +28,11 @@ const Chatbot = ({ messages, isStreaming, onSendMessage, isChatWindowOpen = fals
     const [copiedMessageId, setCopiedMessageId] = useState<string | number | null>(null)
     const [speakingMessageId, setSpeakingMessageId] = useState<string | number | null>(null)
     const [micNotice, setMicNotice] = useState<string | null>(null)
+    const [loadingSpeechId, setLoadingSpeechId] = useState<string | number | null>(null)
+
     const endRef = useRef<HTMLDivElement | null>(null)
     const activeSpeechIdRef = useRef<string | number | null>(null)
+    const speechRequestIdRef = useRef(0)
     const discardRecordingRef = useRef(false)
 
     const [isRecording, setIsRecording] = useState(false)
@@ -51,18 +55,10 @@ const Chatbot = ({ messages, isStreaming, onSendMessage, isChatWindowOpen = fals
 
     // Stop speech synthesis when the chatbot is closed. This is a safety measure to ensure that speech synthesis is stopped when the chatbot is closed, even if the user forgets to stop it manually.
     useEffect(() => {
-        return () => {
-            activeSpeechIdRef.current = null
-            window.speechSynthesis.cancel()
-        }
+        return () => { stopSpeaking() }
     }, [])
-
     useEffect(() => {
-        if (!isOpen) {
-            activeSpeechIdRef.current = null
-            window.speechSynthesis.cancel()
-            setSpeakingMessageId(null)
-        }
+        if (!isOpen) { stopSpeaking() }
     }, [isOpen])
 
     const shouldShowTyping = useMemo(() => {
@@ -96,62 +92,33 @@ const Chatbot = ({ messages, isStreaming, onSendMessage, isChatWindowOpen = fals
     }
 
     const stopSpeaking = () => {
+        stopAllSpeech()
         activeSpeechIdRef.current = null
-        window.speechSynthesis.cancel()
         setSpeakingMessageId(null)
     }
-
-    const handleReadAloud = (messageId: string | number, content: string) => {
-        if (!('speechSynthesis' in window)) {
-            console.error('Speech synthesis is not supported in this browser.')
-            return
-        }
-
-        // Clicking the currently spoken message stops it.
-        if (activeSpeechIdRef.current === messageId) {
-            stopSpeaking()
-            return
-        }
-
-        // Invalidate the old speech before cancelling it.
-        activeSpeechIdRef.current = null
-
-        // Stop any other message before starting a new one.
-        window.speechSynthesis.cancel()
+    const handleReadAloud = async (messageId: string | number, content: string) => {
+        if (getCurrentSpeakerId() === messageId) { stopSpeaking(); return }
         const readableText = extractReadableText(content)
-
-        if (!readableText) {return}
-
-        const utterance = new SpeechSynthesisUtterance(readableText)
-        utterance.rate = 0.95
-        utterance.pitch = 1
-
-        // Mark this message as the currently active speech.
-        activeSpeechIdRef.current = messageId
-        setSpeakingMessageId(messageId)
-
-        utterance.onend = () => {
-            // Only clear state if THIS utterance is still the active one.
-            if (activeSpeechIdRef.current === messageId) {
-                activeSpeechIdRef.current = null
-                setSpeakingMessageId(null)
-            }
+        if (!readableText) return
+        const requestId = ++speechRequestIdRef.current
+        const languageCode: 'en' | 'ur' = detectSpeechLang(readableText) === 'ur-PK' ? 'ur' : 'en'
+        setLoadingSpeechId(messageId)
+        try {
+            const res = await api.post('/ai/chatbot/speech', { text: readableText, languageCode }, { responseType: 'blob' })
+            if (requestId !== speechRequestIdRef.current) return
+            activeSpeechIdRef.current = messageId
+            setSpeakingMessageId(messageId)
+            await playSpeechBlob(messageId, res.data, () => {
+                if (activeSpeechIdRef.current === messageId) { activeSpeechIdRef.current = null; setSpeakingMessageId(null) }
+            })
+        } catch (error) {
+            console.error('Failed to generate/play speech:', error)
+            if (activeSpeechIdRef.current === messageId) { activeSpeechIdRef.current = null; setSpeakingMessageId(null) }
+        } finally {
+            setLoadingSpeechId((current) => (current === messageId ? null : current))
         }
-        utterance.onerror = () => {
-            if (activeSpeechIdRef.current === messageId) {
-                activeSpeechIdRef.current = null
-                setSpeakingMessageId(null)
-            }
-        }
-        window.speechSynthesis.speak(utterance)
     }
-
-    // Expllicitly stop speech synthesis when the chatbot is closed.
-    const handleCloseChatbot = () => {
-        window.speechSynthesis.cancel()
-        setSpeakingMessageId(null)
-        setIsOpen(false)
-    }
+    const handleCloseChatbot = () => { stopSpeaking(); setIsOpen(false) }
 
     const handleMicClick = async () => {
         // SECOND CLICK: stop the current recording
@@ -322,19 +289,16 @@ const Chatbot = ({ messages, isStreaming, onSendMessage, isChatWindowOpen = fals
                                                         <button
                                                             type="button"
                                                             onClick={() =>handleReadAloud(message.id, message.content)}
+                                                            disabled={loadingSpeechId === message.id}
                                                             className="flex h-7 items-center gap-1 rounded-md px-2 text-[11px] text-white/45 transition hover:bg-white/8 hover:text-white/90 cursor-pointer"
                                                             aria-label={speakingMessageId === message.id ? 'Stop reading' : 'Read AI response aloud'}
                                                         >
-                                                            {speakingMessageId === message.id ? (
-                                                                <>
-                                                                    <Square size={11} />
-                                                                    <span>Stop</span>
-                                                                </>
+                                                            {loadingSpeechId === message.id ? (
+                                                                <><span className="h-3 w-3 rounded-full border-2 border-white/40 border-t-white/80 animate-spin" /><span>Loading</span></>
+                                                            ) : speakingMessageId === message.id ? (
+                                                                <><Square size={11} /><span>Stop</span></>
                                                             ) : (
-                                                                <>
-                                                                    <Volume2 size={13} />
-                                                                    <span>Read aloud</span>
-                                                                </>
+                                                                <><Volume2 size={13} /><span>Read aloud</span></>
                                                             )}
                                                         </button>
                                                     </div>

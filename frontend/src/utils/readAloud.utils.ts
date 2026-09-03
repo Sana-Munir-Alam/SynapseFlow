@@ -112,3 +112,15 @@ export const extractReadableText = (markdown: string): string => {
 
     return text
 }
+
+/**
+ * Detects whether text is primarily Urdu/Arabic-script so the speech
+ * engine can be pointed at the right language instead of defaulting to
+ * English and mispronouncing (or silently failing on) the Urdu text.
+ */
+export const detectSpeechLang = (text: string): 'ur-PK' | 'en-US' => {
+    const arabicScriptChars = text.match(/[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/g) ?? []
+    const totalLetters = text.match(/[\p{L}]/gu) ?? []
+    if (totalLetters.length === 0) return 'en-US'
+    return arabicScriptChars.length / totalLetters.length > 0.3 ? 'ur-PK' : 'en-US'
+}

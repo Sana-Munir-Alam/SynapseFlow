@@ -8,7 +8,35 @@ import { semanticSearch } from "../utils/rag.utils";
 import {transcribeAudio} from "../utils/ai-chatbot.utils";
 import { verifyAudioSignature } from '../utils/fileSignature.utils'
 import { getPreviousMessages, saveChatbotMessage, getCachedRAGResponse, setCachedRAGResponse, normalizeQuery } from "../services/dal/chatbot.dal";
+import { generateSpeech } from '../utils/elevenlabs.utils'
 
+export async function readChatbotMessageAloud(req: Request,res: Response) {
+    try {
+        const user = req.user
+        if (!user) {return res.status(401).json({message: 'User not authenticated',})}
+
+        const { text, languageCode } = req.body
+        if (typeof text !== 'string' || !text.trim()) { return res.status(400).json({ message: 'Text is required',}) }
+        if ( languageCode !== 'en' && languageCode !== 'ur') { return res.status(400).json({ message: 'Unsupported language', }) }
+        const audio = await generateSpeech(text.trim(), languageCode)
+
+        return res
+            .status(200)
+            .set({
+                'Content-Type': 'audio/mpeg',
+                'Content-Length': audio.length.toString(),
+                'Cache-Control': 'no-store',
+            })
+            .send(Buffer.from(audio))
+
+    } catch (error: any) {
+        console.error('ElevenLabs speech generation failed:', error)
+        if (error?.message === 'TTS is not configured on this server') {
+            return res.status(503).json({ message: 'Read-aloud is currently unavailable' })
+        }
+        return res.status(500).json({ message: 'Failed to generate speech' })
+    }
+}
 
 export async function handleChatbotMessage(req: Request, res: Response) {
     try {
