@@ -9,6 +9,7 @@ import { useFiles, useFile, useUploadFile, useDeleteFile } from '../../hooks/use
 import { getDownloadUrl, getPreviewUrl, type CourseFile } from '../../services/notes.service'
 import { formatBytes, formatRelativeDate } from './types'
 import { TabPanel, EmptyState } from './Shared'
+import { useBandwidth } from '../../contexts/BandwidthContext'
 
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
@@ -25,6 +26,8 @@ export function FilesTab({ courseId }: { courseId: string }) {
     const [numPages, setNumPages] = useState(0)
     const [pageNumber, setPageNumber] = useState(1)
     const [viewerWidth, setViewerWidth] = useState(800)
+    const { lowBandwidth } = useBandwidth()
+    const [pendingPreviewFile, setPendingPreviewFile] = useState<CourseFile | null>(null)
     const { data: fetchedFile, isLoading: loadingFile } = useFile(selectedFileId ?? '', courseId)
 
     const [docxHtml, setDocxHtml] = useState<string>('')
@@ -48,14 +51,21 @@ export function FilesTab({ courseId }: { courseId: string }) {
 
     const isPreviewableFile = (file: CourseFile) => isPdfFile(file) || isDocxFile(file)
 
-    const openViewer = (file: CourseFile) => {
-        if (!isPreviewableFile(file)) return
-
+    const loadViewer = (file: CourseFile) => {
         setSelectedFileId(file.id)
         setPageNumber(1)
         setNumPages(0)
         setDocxHtml('')
         setDocxError(false)
+    }
+
+    const openViewer = (file: CourseFile) => {
+        if (!isPreviewableFile(file)) return
+        if (lowBandwidth) {
+            setPendingPreviewFile(file)
+            return
+        }
+        loadViewer(file)
     }
 
     const closeViewer = () => {
@@ -187,6 +197,34 @@ export function FilesTab({ courseId }: { courseId: string }) {
                             </div>
                         </motion.div>
                     ))}
+                </div>
+            )}
+
+            {pendingPreviewFile && (
+                <div
+                    className="fixed inset-0 z-[120] bg-black/50 flex items-center justify-center p-4"
+                    onClick={() => setPendingPreviewFile(null)}
+                >
+                    <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full">
+                        <p className="font-semibold text-gray-900 mb-2">Preview this file?</p>
+                        <p className="text-sm text-gray-500 mb-5">
+                            Low-bandwidth mode is on. Previewing "{pendingPreviewFile.originalName}" will download the document now.
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setPendingPreviewFile(null)}
+                                className="flex-1 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => { loadViewer(pendingPreviewFile); setPendingPreviewFile(null) }}
+                                className="flex-1 py-2 rounded-lg bg-[#6B8E23] text-sm font-medium text-white hover:opacity-90"
+                            >
+                                Preview anyway
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
 
