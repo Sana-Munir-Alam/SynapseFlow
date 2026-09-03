@@ -56,7 +56,3 @@ cd Hackathon
 ```
 
 Full environment variable list, setup steps, and scripts are in [`docs/setup.md`](docs/setup.md).
-
-## License
-
-Built for AI Hackathon Pakistan 2026 by Sana Munir Alam.
