@@ -41,9 +41,9 @@ See [`docs/features.md`](docs/features.md) for what each of these actually looks
 
 ## Tech stack, briefly
 
-**Frontend:** React 19, TypeScript, Vite, Tailwind CSS, TanStack Query, tldraw, react-pdf, Socket.IO client
-**Backend:** Node.js, Express 5, TypeScript, Socket.IO, raw `ws` (whiteboard sync), PostgreSQL with `pgvector`, Drizzle ORM
-**AI:** Google Gemini (chat, RAG grounding, flashcard/MCQ generation, study plan generation, audio transcription), ElevenLabs (text-to-speech)
+**Frontend:** React 19, TypeScript, Vite, Tailwind CSS, TanStack Query, tldraw, react-pdf, Socket.IO client<br>
+**Backend:** Node.js, Express 5, TypeScript, Socket.IO, raw `ws` (whiteboard sync), PostgreSQL with `pgvector`, Drizzle ORM<br>
+**AI:** Google Gemini (chat, RAG grounding, flashcard/MCQ generation, study plan generation, audio transcription), ElevenLabs (text-to-speech)<br>
 **Auth & infra:** JWT with rotating refresh tokens, bcrypt, Resend (transactional email), Google Calendar OAuth 2.0
 
 Full reasoning for these choices is in [`docs/architecture.md`](docs/architecture.md) — this list is intentionally just the names.
