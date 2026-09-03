@@ -18,10 +18,10 @@ This README is intentionally short. The detailed write-ups live here:
 
 | Document | What's in it |
 |---|---|
-| [`docs/features.md`](docs/features.md) | Every feature, walked through with real screenshots from the running app |
-| [`docs/architecture.md`](docs/architecture.md) | System architecture, data flow diagrams, the tech stack, and why each piece was chosen |
-| [`docs/security.md`](docs/security.md) | The production security audit this project went through, what was fixed, and the tradeoffs made and why |
-| [`docs/setup.md`](docs/setup.md) | Environment variables, running the project locally, scripts, and deployment notes |
+| [`docs/features.md`](docs/Features.md) | Every feature, walked through with real screenshots from the running app |
+| [`docs/architecture.md`](docs/Architecture.md) | System architecture, data flow diagrams, the tech stack, and why each piece was chosen |
+| [`docs/security.md`](docs/Security.md) | The production security audit this project went through, what was fixed, and the tradeoffs made and why |
+| [`docs/setup.md`](docs/Setup.md) | Environment variables, running the project locally, scripts, and deployment notes |
 
 ---
 
@@ -37,7 +37,7 @@ This README is intentionally short. The detailed write-ups live here:
 - **Low-bandwidth mode** — a setting that removes background polling and gates data-heavy features (document previews, the live whiteboard) behind an explicit "this uses more data" confirmation.
 - **Notifications** — real-time, socket-delivered alerts for upcoming deadlines and for falling behind your study plan, each with a matching email.
 
-See [`docs/features.md`](docs/features.md) for what each of these actually looks like, with screenshots of the real app.
+See [`docs/features.md`](docs/Features.md) for what each of these actually looks like, with screenshots of the real app.
 
 ## Tech stack, briefly
 
@@ -46,7 +46,7 @@ See [`docs/features.md`](docs/features.md) for what each of these actually looks
 **AI:** Google Gemini (chat, RAG grounding, flashcard/MCQ generation, study plan generation, audio transcription), ElevenLabs (text-to-speech)<br>
 **Auth & infra:** JWT with rotating refresh tokens, bcrypt, Resend (transactional email), Google Calendar OAuth 2.0
 
-Full reasoning for these choices is in [`docs/architecture.md`](docs/architecture.md) — this list is intentionally just the names.
+Full reasoning for these choices is in [`docs/architecture.md`](docs/Architecture.md) — this list is intentionally just the names.
 
 ## Running it locally
 
@@ -55,4 +55,4 @@ git clone <this-repo>
 cd Hackathon
 ```
 
-Full environment variable list, setup steps, and scripts are in [`docs/setup.md`](docs/setup.md).
+Full environment variable list, setup steps, and scripts are in [`docs/setup.md`](docs/Setup.md).
