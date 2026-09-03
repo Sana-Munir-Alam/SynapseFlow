@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { X, Bot, SendHorizontal, Copy, Check, Volume2, Square } from 'lucide-react'
+import { X, Bot, SendHorizontal, Copy, Check, Volume2, Square, Mic } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import { extractReadableText } from '../utils/readAloud.utils'
+import { api } from '../lib/axios'
 
 type ChatMessage = {
     id: string | number
@@ -25,8 +26,15 @@ const Chatbot = ({ messages, isStreaming, onSendMessage, isChatWindowOpen = fals
     const [chatWithDocs, setChatWithDocs] = useState(false)
     const [copiedMessageId, setCopiedMessageId] = useState<string | number | null>(null)
     const [speakingMessageId, setSpeakingMessageId] = useState<string | number | null>(null)
+    const [micNotice, setMicNotice] = useState<string | null>(null)
     const endRef = useRef<HTMLDivElement | null>(null)
     const activeSpeechIdRef = useRef<string | number | null>(null)
+    const discardRecordingRef = useRef(false)
+
+    const [isRecording, setIsRecording] = useState(false)
+    const [isTranscribing, setIsTranscribing] = useState(false)
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+    const audioChunksRef = useRef<Blob[]>([])
 
     useEffect(() => {
         endRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -145,6 +153,83 @@ const Chatbot = ({ messages, isStreaming, onSendMessage, isChatWindowOpen = fals
         setIsOpen(false)
     }
 
+    const handleMicClick = async () => {
+        // SECOND CLICK: stop the current recording
+        if (isRecording) {
+            setIsRecording(false)
+            const recorder = mediaRecorderRef.current
+            if (recorder && recorder.state !== 'inactive') {
+                recorder.stop()
+            }
+            return
+        }
+        // Don't start another recording while audio is being transcribed
+        if (isTranscribing) return
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+            const recorder = new MediaRecorder(stream)
+            audioChunksRef.current = []
+            recorder.ondataavailable = (e) => {
+                if (e.data.size > 0) {
+                    audioChunksRef.current.push(e.data)
+                }
+            }
+            recorder.onstop = async () => {
+                setIsRecording(false)
+                stream.getTracks().forEach((track) => track.stop())
+                mediaRecorderRef.current = null
+
+                // Cancelled — throw the audio away, never touches the network.
+                if (discardRecordingRef.current) {
+                    discardRecordingRef.current = false
+                    audioChunksRef.current = []
+                    return
+                }
+
+                const audioBlob = new Blob(audioChunksRef.current, { type: recorder.mimeType })
+                audioChunksRef.current = []
+                setIsTranscribing(true)
+                try {
+                    const formData = new FormData()
+                    formData.append('audio', audioBlob, 'voice-message.webm')
+                    const res = await api.post('/ai/chatbot/transcribe', formData, {
+                        headers: { 'Content-Type': 'multipart/form-data' },
+                    })
+                    const transcript = res.data.transcript
+                    if (transcript) {
+                        onSendMessage(transcript, chatWithDocs)
+                    }
+                } catch (error: any) {
+                    console.error('Voice transcription failed:', error)
+                    const message = error?.response?.data?.message ?? 'Could not transcribe — try again.'
+                    setMicNotice(message)
+                    window.setTimeout(() => setMicNotice(null), 2500)
+                } finally {
+                    setIsTranscribing(false)
+                }
+            }
+            mediaRecorderRef.current = recorder
+            recorder.start()
+            // NOW the UI becomes red + recording animation
+            setIsRecording(true)
+        } catch (error) {
+            console.error(
+                'Microphone access denied or unavailable:',
+                error
+            )
+            setIsRecording(false)
+        }
+    }
+
+    const handleCancelRecording = () => {
+        discardRecordingRef.current = true
+        const recorder = mediaRecorderRef.current
+        if (recorder && recorder.state !== 'inactive') {
+            recorder.stop()
+        } else {
+            setIsRecording(false)
+        }
+    }
     return (
         <div className={`fixed right-4 z-50 transition-all duration-300 ${isChatWindowOpen ? 'bottom-14' : 'bottom-4'}`}>
             <AnimatePresence>
@@ -309,6 +394,10 @@ const Chatbot = ({ messages, isStreaming, onSendMessage, isChatWindowOpen = fals
                                 </AnimatePresence>
                             </motion.button>
 
+                            {micNotice && (
+                                <p className="px-1 text-[11px] text-white/40">{micNotice}</p>
+                            )}
+
                             <div className="flex items-center gap-2 rounded-xl bg-[#141414] border border-[#ffffff05] px-2 py-1 focus-within:border-[#ffffff20] focus-within:bg-[#1A1A1A] transition-colors">
                                 <input
                                     type="text"
@@ -325,16 +414,53 @@ const Chatbot = ({ messages, isStreaming, onSendMessage, isChatWindowOpen = fals
                                     className="h-9 flex-1 bg-transparent px-2 text-[13px] text-white/90 outline-none transition placeholder:text-white/30 disabled:cursor-not-allowed"
                                 />
 
+                                <button 
+                                    type="button" 
+                                    onClick={handleMicClick} 
+                                    disabled={isStreaming || isTranscribing} 
+                                    className={`relative inline-flex h-8 min-w-8 items-center justify-center rounded-lg transition-all duration-300 disabled:cursor-not-allowed ${
+                                        isRecording 
+                                            ? 'text-red-400' 
+                                            : 'text-white/40 hover:text-white/80'
+                                    }`}
+                                    aria-label={isRecording ? 'Stop recording' : 'Record voice message'}
+                                >
+                                    {isRecording ? (
+                                        <div className="flex items-center gap-[2px]">
+                                            <span className="h-1 w-[2px] rounded-full bg-current animate-pulse" />
+                                            <span className="h-2.5 w-[2px] rounded-full bg-current animate-pulse [animation-delay:100ms]" />
+                                            <span className="h-4 w-[2px] rounded-full bg-current animate-pulse [animation-delay:200ms]" />
+                                            <span className="h-2.5 w-[2px] rounded-full bg-current animate-pulse [animation-delay:100ms]" />
+                                            <span className="h-1 w-[2px] rounded-full bg-current animate-pulse" />
+
+                                            <Mic 
+                                                size={14} 
+                                                className="ml-1 animate-pulse" 
+                                            />
+                                        </div>
+                                    ) : (
+                                        <Mic size={14} />
+                                    )}
+                                </button>
+
                                 <button
                                     type="button"
-                                    onClick={handleSend}
-                                    disabled={isStreaming || !input.trim()}
-                                    className={`inline-flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-300 disabled:cursor-not-allowed ${input.trim()
-                                        ? 'text-indigo-400 hover:bg-indigo-500/10 hover:text-indigo-300 scale-100'
-                                        : 'text-white/20 scale-95'
-                                        }`}
+                                    onClick={isRecording ? handleCancelRecording : handleSend}
+                                    disabled={isRecording ? false : (isStreaming || !input.trim())}
+                                    className={`inline-flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-300 disabled:cursor-not-allowed ${
+                                        isRecording
+                                            ? 'text-red-400 hover:bg-red-500/10 hover:text-red-300'
+                                            : input.trim()
+                                                ? 'text-indigo-400 hover:bg-indigo-500/10 hover:text-indigo-300 scale-100'
+                                                : 'text-white/20 scale-95'
+                                    }`}
+                                    aria-label={isRecording ? 'Cancel recording' : 'Send message'}
                                 >
-                                    <SendHorizontal size={14} className={input.trim() ? "translate-x-0.5" : ""} />
+                                    {isRecording ? (
+                                        <X size={14} />
+                                    ) : (
+                                        <SendHorizontal size={14} className={input.trim() ? "translate-x-0.5" : ""} />
+                                    )}
                                 </button>
                             </div>
                         </div>
