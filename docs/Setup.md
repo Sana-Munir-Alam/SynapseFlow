@@ -86,4 +86,4 @@ The backend is a normal long-running Node process (not a serverless function) �
 
 ---
 
-[← Security](security.md) · [Back to README](../README.md)
+[← Security](Security.md) · [Back to README](../README.md)

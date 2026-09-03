@@ -155,4 +155,4 @@ Urdu text throughout the app renders in the Noto Nastaliq Urdu font rather than 
 
 ---
 
-[← Back to README](../README.md) · [Architecture →](architecture.md)
+[← Back to README](../README.md) · [Architecture →](Architecture.md)

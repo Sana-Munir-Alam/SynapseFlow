@@ -36,4 +36,4 @@ These aren't audit findings, but they're the same kind of "state the tradeoff in
 
 ---
 
-[← Architecture](architecture.md) · [Setup →](setup.md)
+[← Architecture](Architecture.md) · [Setup →](Setup.md)

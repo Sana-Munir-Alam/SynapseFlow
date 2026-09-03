@@ -125,4 +125,4 @@ Passwords are hashed with bcrypt before storage. On login, a short-lived access 
 
 ---
 
-[← Features](features.md) · [Security →](security.md)
+[← Features](Features.md) · [Security →](Security.md)
