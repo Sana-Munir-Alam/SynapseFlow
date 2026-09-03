@@ -18,6 +18,8 @@ const envSchema = z.object({
     GOOGLE_GENERATIVE_AI_API_KEY: z.string(),
     GEMINI_MODEL:                 z.string().default('gemini-2.5-flash'),
     TEXT_EMBEDDING_MODEL:         z.string().default('gemini-embedding-001'),
+    ELEVENLABS_API_KEY:  z.string().optional(),
+    ELEVENLABS_VOICE_ID: z.string().optional(),
     MAIL_SENDER:                  z.email(),
     CORS_ORIGIN: z
         .string()
