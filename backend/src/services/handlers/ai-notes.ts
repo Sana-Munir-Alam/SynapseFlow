@@ -28,11 +28,11 @@ export async function generateFlashcardsFromText(text: string, count = 5): Promi
     // Trim text to avoid token limits (~12k chars is safe)
     const trimmed = text.slice(0, 12000)
 
-    const prompt = `You are an expert educator. Generate exactly ${count} flashcards from the provided study material.
-Return ONLY a valid JSON array with no extra text, markdown, or explanation.
-Each element must have exactly two string fields: "question" and "answer".
-Example format:
-[{"question":"What is X?","answer":"X is ..."},{"question":"Define Y","answer":"Y means ..."}]`
+    const prompt = `You are an expert educator.Write the flashcards in whichever language the study material below is primarily written in (English or Urdu) — do not translate it. Generate exactly ${count} flashcards from the provided study material.
+    Return ONLY a valid JSON array with no extra text, markdown, or explanation.
+    Each element must have exactly two string fields: "question" and "answer".
+    Example format:
+    [{"question":"What is X?","answer":"X is ..."},{"question":"Define Y","answer":"Y means ..."}]`
 
     const messages = [{ role: 'user' as const, content: `Study material:\n\n${trimmed}` }]
 
@@ -62,16 +62,16 @@ export interface AIMcq {
 export async function generateMcqsFromText(text: string, count = 5): Promise<AIMcq[]> {
     const trimmed = text.slice(0, 12000)
 
-    const prompt = `You are an expert educator. Generate exactly ${count} multiple-choice questions from the provided study material.
-Return ONLY a valid JSON array with no extra text, markdown, or explanation.
-Each element must have:
-  - "question": string
-  - "options": array of exactly 4 strings
-  - "correctOption": 0-based index of the correct option (integer)
-  - "explanation": brief explanation of the correct answer (string)
-  - "difficulty": one of "easy", "medium", or "hard"
-Example:
-[{"question":"What is X?","options":["A","B","C","D"],"correctOption":2,"explanation":"Because C is correct","difficulty":"medium"}]`
+    const prompt = `You are an expert educator. Write the MCQ's in whichever language the study material below is primarily written in (English or Urdu) — do not translate it.Generate exactly ${count} multiple-choice questions from the provided study material.
+    Return ONLY a valid JSON array with no extra text, markdown, or explanation.
+    Each element must have:
+    - "question": string
+    - "options": array of exactly 4 strings
+    - "correctOption": 0-based index of the correct option (integer)
+    - "explanation": brief explanation of the correct answer (string)
+    - "difficulty": one of "easy", "medium", or "hard"
+    Example:
+    [{"question":"What is X?","options":["A","B","C","D"],"correctOption":2,"explanation":"Because C is correct","difficulty":"medium"}]`
 
     const messages = [{ role: 'user' as const, content: `Study material:\n\n${trimmed}` }]
 

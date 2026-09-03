@@ -8,6 +8,29 @@ import { getGroupById } from "../services/dal/groups.dal"
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
+export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Promise<string> {
+    const result = await withRetry(async () => {
+        return await generateText({
+            model: google(env.GEMINI_MODEL),
+            messages: [{
+                role: 'user',
+                content: [
+                    {
+                        type: 'text',
+                        text: 'Transcribe this audio exactly as spoken. The speaker may use English, Urdu, or a mix of both. ' +
+                            'If the audio contains silence, only background noise, or no discernible speech at all, ' +
+                            'you must respond with exactly this token and nothing else: NO_SPEECH_DETECTED. ' +
+                            'Do not guess, invent, or hallucinate words when unsure — use the token instead. ' +
+                            'Otherwise output only the transcription text — no commentary, no quotation marks, no translation.'
+                    },
+                    { type: 'file', data: audioBuffer, mediaType: mimeType },
+                ],
+            }],
+        })
+    })
+    return result.text.trim()
+}
+
 // exponential backoff function
 export const withRetry = async <T>(
     fn: () => Promise<T>,

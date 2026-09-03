@@ -6,6 +6,8 @@ import { AIMessageType, SAMPLE_CONVERSATION, streamResponseToClients } from '../
 import { STATIC_PROMPT } from "../utils/data";
 import { buildRAGSystemPrompt } from "../services/handlers/rag-search";
 import { semanticSearch } from "../utils/rag.utils";
+import {transcribeAudio} from "../utils/ai-chatbot.utils";
+import { verifyAudioSignature } from '../utils/fileSignature.utils'
 
 
 export async function handleChatbotMessage(req: Request, res: Response) {
@@ -56,7 +58,6 @@ export async function handleChatbotMessage(req: Request, res: Response) {
     }
 }
 
-
 export async function getCopilotHistory(req: Request, res: Response) {
     try {
         const user = req.user
@@ -81,6 +82,30 @@ export async function getCopilotHistory(req: Request, res: Response) {
     }
 }
 
+export async function transcribeVoiceMessage(req: Request, res: Response) {
+    try {
+        const user = req.user
+        if (!user) return res.status(401).json({ message: 'User not authenticated' })
+        const audioFile = (req as any).file
+        if (!audioFile) return res.status(400).json({ message: 'No audio file uploaded' })
+
+        if (!verifyAudioSignature(audioFile.buffer, audioFile.mimetype)) {
+            return res.status(400).json({ message: 'Uploaded file does not look like a valid audio recording' })
+        }
+
+        const transcript = await transcribeAudio(audioFile.buffer, audioFile.mimetype)
+        const cleaned = transcript?.trim()
+
+        if (!cleaned || cleaned.toUpperCase() === 'NO_SPEECH_DETECTED') {
+            return res.status(422).json({ message: 'No speech detected — try again closer to the mic' })
+        }
+
+        return res.status(200).json({ transcript: cleaned })
+    } catch (err) {
+        console.error(err)
+        return res.status(500).json({ message: 'Failed to transcribe audio' })
+    }
+}
 
 type PromptUser = Pick<Express.UserPayload, 'username' | 'email'>
 type PromptCourse = { name: string }
