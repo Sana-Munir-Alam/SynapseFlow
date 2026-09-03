@@ -5,7 +5,7 @@ import { GroupSidebar } from '../components/chat/GroupSidebar';
 import { ChatWindow } from '../components/chat/ChatWindow';
 import { useMyGroups } from '../hooks/useGroup';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
-import { useSocket } from '@/hooks/useSocket';
+// import { useSocket } from '@/hooks/useSocket';
 import { useGroupSocket } from '@/hooks/useGroupSocket';
 import { useOnlineCount } from '@/hooks/useOnlineCount';
 
@@ -39,7 +39,7 @@ export const ChatPage = () => {
     const currentUserColor = `hsl(${(currentUserId.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0)) % 360}, 70%, 50%)`;
 
     // Connect socket when page loads
-    useSocket();
+    // useSocket();
 
     // Join/leave room when active group changes
     useGroupSocket(activeGroup?.id ?? null);
