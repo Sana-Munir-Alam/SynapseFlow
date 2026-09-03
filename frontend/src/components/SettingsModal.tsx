@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { X, User, Palette, Trash2, AlertTriangle } from 'lucide-react'
+import { X, User, Palette, Trash2, AlertTriangle, Wifi, WifiOff } from 'lucide-react'
+import { useBandwidth } from '../contexts/BandwidthContext'
 import { useTheme } from '../contexts/ThemeContext'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -13,7 +14,7 @@ interface SettingsModalProps {
     onClose: () => void
 }
 
-type SettingsTab = 'account' | 'appearance'
+type SettingsTab = 'account' | 'appearance' | 'data'
 
 function useDeleteAccount() {
     const navigate = useNavigate()
@@ -36,6 +37,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
     const { theme, setTheme, resolvedTheme } = useTheme()
     const isDark = resolvedTheme === 'dark'
+    const { lowBandwidth, setLowBandwidth } = useBandwidth()
 
     const { data: currentUserData } = useCurrentUser()
     const user = currentUserData?.user
@@ -123,6 +125,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                     {([
                                         { id: 'account' as const,    label: 'Account',    Icon: User    },
                                         { id: 'appearance' as const, label: 'Appearance', Icon: Palette },
+                                        { id: 'data' as const,       label: 'Data & Bandwidth', Icon: Wifi },
                                     ]).map(({ id, label, Icon }) => {
                                         const active = activeTab === id
                                         return (
@@ -166,7 +169,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                     flexShrink: 0,
                                 }}>
                                     <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: textPri }}>
-                                        {activeTab === 'account' ? 'Account Settings' : 'Appearance'}
+                                        {activeTab === 'account' ? 'Account Settings' : activeTab === 'appearance' ? 'Appearance' : 'Data & Bandwidth'}
                                     </h3>
                                     <button
                                         onClick={onClose}
@@ -304,6 +307,63 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                                         </div>
                                                     }
                                                 />
+                                            </div>
+                                        </div>
+                                    )}
+                                    {activeTab === 'data' && (
+                                        <div>
+                                            <p style={{ fontSize: '16px', fontWeight: 600, color: textPri, marginBottom: '6px' }}>
+                                                Low-Bandwidth Mode
+                                            </p>
+                                            <p style={{ fontSize: '13px', color: textMut, marginBottom: '24px', lineHeight: 1.6 }}>
+                                                Reduces data usage on slower connections: stops notifications from
+                                                auto-refreshing in the background, and asks before loading
+                                                data-heavy previews like document viewers and the live whiteboard.
+                                            </p>
+
+                                            <div style={{
+                                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                                backgroundColor: inputBg, border: `1px solid ${border}`,
+                                                borderRadius: '12px', padding: '16px 18px',
+                                            }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                    {lowBandwidth ? (
+                                                        <WifiOff style={{ width: '20px', height: '20px', color: '#6B8E23' }} />
+                                                    ) : (
+                                                        <Wifi style={{ width: '20px', height: '20px', color: textMut }} />
+                                                    )}
+                                                    <div>
+                                                        <p style={{ fontSize: '14px', fontWeight: 600, color: textPri }}>
+                                                            Low-Bandwidth Mode
+                                                        </p>
+                                                        <p style={{ fontSize: '12px', color: textMut }}>
+                                                            {lowBandwidth ? 'On — saving data' : 'Off'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <button
+                                                    type="button"
+                                                    role="switch"
+                                                    aria-checked={lowBandwidth}
+                                                    onClick={() => setLowBandwidth(!lowBandwidth)}
+                                                    style={{
+                                                        width: '44px', height: '24px', borderRadius: '999px',
+                                                        border: 'none', cursor: 'pointer', position: 'relative',
+                                                        backgroundColor: lowBandwidth ? '#6B8E23' : (isDark ? '#3a3f52' : '#d1d5db'),
+                                                        transition: 'background-color 0.15s',
+                                                        flexShrink: 0,
+                                                    }}
+                                                >
+                                                    <span style={{
+                                                        position: 'absolute', top: '3px',
+                                                        left: lowBandwidth ? '23px' : '3px',
+                                                        width: '18px', height: '18px', borderRadius: '50%',
+                                                        backgroundColor: '#ffffff',
+                                                        transition: 'left 0.15s',
+                                                        boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                                                    }} />
+                                                </button>
                                             </div>
                                         </div>
                                     )}
