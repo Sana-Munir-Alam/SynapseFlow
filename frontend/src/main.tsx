@@ -6,6 +6,7 @@ import './index.css'
 import App from './App.tsx'
 import { Toaster } from 'sonner'
 import { ThemeProvider } from './contexts/ThemeContext'
+import { BandwidthProvider } from './contexts/BandwidthContext'
 import { ErrorBoundary } from './components/ErrorBoundary'
 
 const queryClient = new QueryClient({
@@ -22,10 +23,12 @@ createRoot(document.getElementById('root')!).render(
     <StrictMode>
         <ErrorBoundary>
             <ThemeProvider>
-                <QueryClientProvider client={queryClient}>
-                    <App />
-                    <Toaster position="top-center" richColors />
-                </QueryClientProvider>
+                <BandwidthProvider>
+                    <QueryClientProvider client={queryClient}>
+                        <App />
+                        <Toaster position="top-center" richColors />
+                    </QueryClientProvider>
+                </BandwidthProvider>
             </ThemeProvider>
         </ErrorBoundary>
     </StrictMode>,

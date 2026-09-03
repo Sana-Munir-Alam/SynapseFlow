@@ -10,11 +10,15 @@ import { navItems } from './dashboard/navigation'
 import { Sidebar } from './dashboard/Sidebar'
 import { NotificationPanel } from './NotificationPanel'
 import { SettingsModal } from './SettingsModal'
+import { useSocket } from '../hooks/useSocket'
+import { useNotificationSocket } from '../hooks/useNotificationSocket'
 
 export function DashboardLayout() {
     const location  = useLocation()
     const { mutate: logout, isPending } = useLogout()
     const { data: notifications = [] }  = useNotifications()
+    useSocket()
+    useNotificationSocket()
     const { resolvedTheme } = useTheme()
     const isDark = resolvedTheme === 'dark'
 
