@@ -1,43 +1,30 @@
-import { Brain, CheckCircle, FileText, Loader2, RefreshCw, RotateCcw, Sparkles, Volume2, XCircle } from 'lucide-react'
+import { Brain, CheckCircle, FileText, Loader2, RefreshCw, RotateCcw, Sparkles, Square, Volume2, XCircle } from 'lucide-react'
 import { motion } from 'motion/react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from '../Button'
 import { useFinishFlashcardSession, useFlashcards, useFiles, useProcessFilesForFlashcards, useRegenerateFlashcards, useStartFlashcardSession,} from '../../hooks/useNotes'
 import { TabPanel } from './Shared'
+import { extractReadableText, detectSpeechLang } from '../../utils/readAloud.utils'
+import { playSpeechBlob, stopAllSpeech, getCurrentSpeakerId } from '../../utils/audioPlayer.utils'
+import { api } from '../../lib/axios'
 
 type ViewState = 'idle' | 'study' | 'done'
 
 export function FlashcardsTab({ courseId, isActive }: { courseId: string; isActive: boolean }) {
     const { data: files = [] } = useFiles(courseId)
-
     const { data: cards = [], isLoading, } = useFlashcards(courseId)
-
     const { mutate: processFiles, isPending: processing, } = useProcessFilesForFlashcards(courseId)
-
     const { mutate: regenerate, isPending: regenerating, } = useRegenerateFlashcards(courseId)
-
     const { mutate: startSession } = useStartFlashcardSession(courseId)
-
     const { mutate: finishSession } = useFinishFlashcardSession()
+
+    const [isLoadingSpeech, setIsLoadingSpeech] = useState(false)
+    const [isSpeakingCard, setIsSpeakingCard] = useState(false)
+    const speechRequestIdRef = useRef(0)
 
     const hasFiles = files.length > 0
     const hasCards = cards.length > 0
     
-    const stopSpeaking = () => {
-        window.speechSynthesis.cancel()
-    }
-
-    const speakText = (text: string) => {
-        stopSpeaking()
-
-        const utterance = new SpeechSynthesisUtterance(text)
-        utterance.rate = 0.95
-        utterance.pitch = 1
-        utterance.lang = 'en-US'
-
-        window.speechSynthesis.speak(utterance)
-    }
-
     // Track file count at last successful processFiles to detect deletions
     const [lastProcessedFileCount, setLastProcessedFileCount] = useState(() => hasCards ? files.length : -1)
 
@@ -53,6 +40,11 @@ export function FlashcardsTab({ courseId, isActive }: { courseId: string; isActi
 
     const [currentIdx, setCurrentIdx] = useState(0)
     const [flipped, setFlipped] = useState(false)
+
+    const stopSpeaking = () => {
+        stopAllSpeech()
+        setIsSpeakingCard(false)
+    }
     
     useEffect(() => { stopSpeaking()}, [view])
     
@@ -60,10 +52,30 @@ export function FlashcardsTab({ courseId, isActive }: { courseId: string; isActi
     
     useEffect(() => { return () => stopSpeaking() }, [])
 
-    const speakCard = () => {
+    const speakCard = async () => {
         if (!card) return
+        const speakerId = `${card.id}-${flipped ? 'answer' : 'question'}`
+        if (getCurrentSpeakerId() === speakerId) { stopSpeaking(); return }
+
         const text = flipped ? card.answer : card.question
-        speakText(text)
+        const readableText = extractReadableText(text)
+        if (!readableText) return
+
+        const requestId = ++speechRequestIdRef.current
+        const languageCode: 'en' | 'ur' = detectSpeechLang(readableText) === 'ur-PK' ? 'ur' : 'en'
+
+        setIsLoadingSpeech(true)
+        try {
+            const res = await api.post('/ai/chatbot/speech', { text: readableText, languageCode }, { responseType: 'blob' })
+            if (requestId !== speechRequestIdRef.current) return
+            setIsSpeakingCard(true)
+            await playSpeechBlob(speakerId, res.data, () => setIsSpeakingCard(false))
+        } catch (error) {
+            console.error('Failed to generate/play speech:', error)
+            setIsSpeakingCard(false)
+        } finally {
+            setIsLoadingSpeech(false)
+        }
     }
 
     const handleProcessFiles = () => {
@@ -305,14 +317,19 @@ export function FlashcardsTab({ courseId, isActive }: { courseId: string; isActi
                 <div className="w-full max-w-lg flex justify-end">
                     <button
                         onClick={speakCard}
+                        disabled={isLoadingSpeech}
                         className="flex items-center gap-1 px-3 py-1.5 rounded-full
                         bg-white border border-gray-200 shadow-sm
                         text-gray-500 hover:text-[#6B8E23] hover:border-[#6B8E23]/30 cursor-pointer
-                        transition-colors text-xs font-medium"
+                        transition-colors text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        <Volume2 className="w-3.5 h-3.5" />
-
-                        Read Aloud
+                        {isLoadingSpeech ? (
+                            <><Loader2 className="w-3.5 h-3.5 animate-spin" />Loading</>
+                        ) : isSpeakingCard ? (
+                            <><Square className="w-3.5 h-3.5" />Stop</>
+                        ) : (
+                            <><Volume2 className="w-3.5 h-3.5" />Read Aloud</>
+                        )}
                     </button>
                 </div>
                 <div
