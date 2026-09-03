@@ -13,3 +13,5 @@ export { default as courses, mcqDifficultyEnum, courseFiles, flashcards, mcqs, m
 
 export { default as googleCalendarTokens } from './google_calendar_tokens.schema'
 export { default as whiteboards } from './whiteboard.schema'
+
+export { default as ragResponseCache } from './rag_response_cache.schema'
