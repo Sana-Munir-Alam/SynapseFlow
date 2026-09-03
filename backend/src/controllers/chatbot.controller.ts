@@ -1,5 +1,4 @@
 import { Request, Response } from "express";
-import { getPreviousMessages, saveChatbotMessage } from "../services/dal/chatbot.dal";
 import { getMyGroupsFromDB } from "../services/dal/groups.dal";
 import { getCoursesByUser } from "../services/dal/notes.dal";
 import { AIMessageType, SAMPLE_CONVERSATION, streamResponseToClients } from '../utils/ai-chatbot.utils';
@@ -8,6 +7,7 @@ import { buildRAGSystemPrompt } from "../services/handlers/rag-search";
 import { semanticSearch } from "../utils/rag.utils";
 import {transcribeAudio} from "../utils/ai-chatbot.utils";
 import { verifyAudioSignature } from '../utils/fileSignature.utils'
+import { getPreviousMessages, saveChatbotMessage, getCachedRAGResponse, setCachedRAGResponse, normalizeQuery } from "../services/dal/chatbot.dal";
 
 
 export async function handleChatbotMessage(req: Request, res: Response) {
@@ -40,10 +40,25 @@ export async function handleChatbotMessage(req: Request, res: Response) {
 
         let fullResponse: any;
         if (req.body.docs) {
+            const normalizedQuery = normalizeQuery(prompt)
             const relevantChunks = await semanticSearch({ query: prompt, userId, limit: 5 });
-            const ragSystemPrompt = buildRAGSystemPrompt(relevantChunks);
-            
-            fullResponse = await streamResponseToClients({res, systemPrompt: ragSystemPrompt, messages})
+            const fileIds = relevantChunks.map((chunk: any) => chunk.fileId)
+            const cached = await getCachedRAGResponse(userId, normalizedQuery, fileIds)
+            console.log(cached ? '[RAG cache] HIT' : '[RAG cache] MISS')
+
+            if (cached) {
+                res.setHeader('Content-Type', 'text/event-stream')
+                res.setHeader('Cache-Control', 'no-cache')
+                res.setHeader('Connection', 'keep-alive')
+                res.flushHeaders()
+                res.write(`data: ${cached.replace(/\n/g, '\\n')}\n\n`)
+                res.write('data: [DONE]\n\n')
+                fullResponse = cached
+            } else {
+                const ragSystemPrompt = buildRAGSystemPrompt(relevantChunks);
+                fullResponse = await streamResponseToClients({res, systemPrompt: ragSystemPrompt, messages})
+                await setCachedRAGResponse(userId, normalizedQuery, fileIds, fullResponse)
+            }
         } else {
             fullResponse = await streamResponseToClients({res, systemPrompt, messages})
         }
