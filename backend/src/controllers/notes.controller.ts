@@ -2,7 +2,7 @@ import type { Request, Response } from 'express'
 import fs from 'fs'
 import path from 'path'
 import { completeFlashcardSession, getCourseById, getCourseCounts, getCoursesByUser, getFileByCourse, getFileById, getFilesByCourse, getFlashcardsByCourse, getMcqById, getMcqsByCourse, insertCourse, insertFile, insertFlashcard, insertFlashcardSession, insertMcqAttempt, insertMcqWithOptions, removeCourse, removeFile, replaceFlashcardContent, replaceMcqContent, updateCourse, deleteMcqOnly, deleteFlashcardOnly, touchCourse } from '../services/dal/notes.dal'
-import { deleteEmbeddingsByFile, extractTextFromPdf, extractTextFromDocx, generateChunks, generateEmbeddings, storeEmbeddingsIntoDB } from '../utils/rag.utils'
+import { deleteEmbeddingsByFile, extractTextFromPdf, extractTextFromDocx, generateChunks, generateEmbeddings, storeEmbeddingsIntoDB, extractTextFromPdfByPage } from '../utils/rag.utils'
 import { extractTextFromFile, generateFlashcardsFromText, generateMcqsFromText } from '../services/handlers/ai-notes'
 import { emitProgressStale } from '../lib/emitProgressStale'
 import { verifyPdfOrDocxSignature } from '../utils/fileSignature.utils'
@@ -213,21 +213,12 @@ export const uploadFile = async (req: Request, res: Response) => {
     }
 }
 
-async function processEmbeddingsInBackground(
-    fullFilePath: string,
-    isPdf: boolean,
-    fileId: string,
-    originalName: string
-) {
+async function processEmbeddingsInBackground(fullFilePath: string, isPdf: boolean, fileId: string, originalName: string) {
     try {
-        const text = isPdf
-            ? await extractTextFromPdf(fullFilePath)
-            : await extractTextFromDocx(fullFilePath)
-
-        const chunks = await generateChunks(text)
-        const embeddings = await generateEmbeddings(chunks)
+        const pages = isPdf ? await extractTextFromPdfByPage(fullFilePath) : [{ text: await extractTextFromDocx(fullFilePath), pageNumber: null }]
+        const chunks = await generateChunks(pages)
+        const embeddings = await generateEmbeddings(chunks.map(c => c.text))
         await storeEmbeddingsIntoDB({ chunks, embeddings, fileId })
-
         console.log(`[embeddings] stored ${chunks.length} chunks for "${originalName}" (${fileId})`)
     } catch (err) {
         console.error(`[embeddings] failed for "${originalName}" (${fileId}):`, err)

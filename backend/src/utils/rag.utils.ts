@@ -9,13 +9,17 @@ import env from '../config/env';
 import db from '../db/connection';
 import { courseFiles, courses, documentEmbeddings } from '../db/schema';
 
-export async function generateChunks(text: string, chunkSize: number = 4000, chunkOverlap: number = 400) {
-    const splitter = new RecursiveCharacterTextSplitter({
-        chunkSize,
-        chunkOverlap,
-    });
-
-    return await splitter.splitText(text);
+export async function generateChunks(pages: { text: string; pageNumber: number | null }[], chunkSize: number = 4000, chunkOverlap: number = 400): Promise<{ text: string; pageNumber: number | null }[]> {
+    const splitter = new RecursiveCharacterTextSplitter({ chunkSize, chunkOverlap });
+    const chunks: { text: string; pageNumber: number | null }[] = [];
+    for (const page of pages) {
+        const cleanPageText = page.text.replace(/\u0000/g, "");
+        const pageChunks = await splitter.splitText(cleanPageText);
+        for (const chunkText of pageChunks) {
+            chunks.push({ text: chunkText, pageNumber: page.pageNumber });
+        }
+    }
+    return chunks;
 }
 
 export async function extractTextFromPdf(filepath: string): Promise<string> {
@@ -48,6 +52,24 @@ export async function extractTextFromDocx(filepath: string): Promise<string> {
     }
 }
 
+export async function extractTextFromPdfByPage(filepath: string): Promise<{ text: string; pageNumber: number }[]> {
+    const pdf = await fs.readFile(filepath);
+    const parser = new PDFParse({ data: pdf });
+    try {
+        const info = await parser.getInfo({ parsePageInfo: true });
+        const totalPages = info.total;
+        const pages: { text: string; pageNumber: number }[] = [];
+        for (let pageNumber = 1; pageNumber <= totalPages; pageNumber++) {
+            const result = await parser.getText({ partial: [pageNumber] });
+            if (result.text?.trim()) pages.push({ text: result.text, pageNumber });
+        }
+        if (pages.length === 0) throw new Error("Failed to extract text from PDF");
+        return pages;
+    } finally {
+        await parser.destroy();
+    }
+}
+
 export async function generateEmbeddings(texts: string[]) {
     const BATCH_SIZE = 100;
     const allEmbeddings: number[][] = [];
@@ -64,19 +86,21 @@ export async function generateEmbeddings(texts: string[]) {
     return allEmbeddings;
 }
 
-type ChunksStorageType = {
-    chunks: string[];
-    embeddings: number[][];
-    fileId: string;
-}
+type ChunksStorageType = { 
+    chunks: { 
+        text: string; 
+        pageNumber: number | null 
+    }[]; 
+    embeddings: number[][]; 
+    fileId: string; }
 
 export async function storeEmbeddingsIntoDB({ chunks, embeddings, fileId }: ChunksStorageType) {
-    const records = chunks.map((chunk, index) => ({
-        chunkText: chunk,
-        embedding: embeddings[index],
-        fileId,
+    const records = chunks.map((chunk, index) => ({ 
+        chunkText: chunk.text, 
+        pageNumber: chunk.pageNumber, 
+        embedding: embeddings[index], 
+        fileId 
     }));
-
     return await db.insert(documentEmbeddings).values(records);
 }
 
@@ -126,6 +150,7 @@ export async function semanticSearch({ query, userId, limit }: { query: string; 
         .select({
             id:        documentEmbeddings.id,
             chunkText: documentEmbeddings.chunkText,
+            pageNumber: documentEmbeddings.pageNumber,
             embedding: documentEmbeddings.embedding,
             fileId:    documentEmbeddings.fileId,
             courseFile: {
