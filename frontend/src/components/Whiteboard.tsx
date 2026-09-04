@@ -27,6 +27,12 @@ export default function Whiteboard({ groupId, userId, userName, userColor }: Whi
         api.post('/auth/refresh').catch(() => {}).finally(() => setSessionReady(true))
     }, [])
 
+    if (!sessionReady) return <div>Connecting to collaboration session...</div>
+
+    return <WhiteboardCanvas groupId={groupId} userId={userId} userName={userName} userColor={userColor} />
+}
+
+function WhiteboardCanvas({ groupId, userId, userName, userColor }: WhiteboardProps) {
     const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8000'
     const uri = `${WS_URL}/whiteboard/${groupId}`
 
@@ -43,8 +49,6 @@ export default function Whiteboard({ groupId, userId, userName, userColor }: Whi
         })),
     }), [userId, userName, userColor])
 
-    if (!sessionReady) return <div>Connecting to collaboration session...</div>
-
     const store = useSync({ uri, assets, users });
 
     if (store.status === "loading") {
@@ -56,4 +60,4 @@ export default function Whiteboard({ groupId, userId, userName, userColor }: Whi
     }
 
     return <Tldraw store={store.store} licenseKey={import.meta.env.VITE_TLDRAW_LICENSE_KEY}/>;
-}   
+}
