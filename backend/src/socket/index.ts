@@ -46,7 +46,7 @@ export const initSocket = (httpServer: HttpServer) => {
         return next(new Error('Authentication required'));
       }
 
-      const payload = jwt.verify(token, process.env.JWT_SECRET!) as {
+      const payload = jwt.verify(token, env.JWT_SECRET) as {
         id: string;
         username: string;
       };
