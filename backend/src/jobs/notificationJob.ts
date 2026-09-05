@@ -132,6 +132,6 @@ const runJob = async () => {
 cron.schedule('0 9 * * *', () => {
     console.log('[NotificationJob] Running daily deadline check...')
     runJob()
-})
+}, { timezone: 'Asia/Karachi' })
 
-console.log('[NotificationJob] Scheduled — runs daily at 08:00')
+console.log('[NotificationJob] Scheduled — runs daily at 09:00 (Asia/Karachi)')
