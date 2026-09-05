@@ -1,7 +1,8 @@
-import { useMemo } from 'react'
+import { useMemo, useEffect, useState } from 'react'
 import { computed, createUserId, Tldraw } from 'tldraw'
 import { useSync } from '@tldraw/sync'
 import 'tldraw/tldraw.css'
+import { api } from '../lib/axios'
 
 type WhiteboardProps = {
     groupId: string
@@ -20,7 +21,18 @@ const assets = {
 }
 
 export default function Whiteboard({ groupId, userId, userName, userColor }: WhiteboardProps) {
+    const [sessionReady, setSessionReady] = useState(false)
 
+    useEffect(() => {
+        api.post('/auth/refresh').catch(() => {}).finally(() => setSessionReady(true))
+    }, [])
+
+    if (!sessionReady) return <div>Connecting to collaboration session...</div>
+
+    return <WhiteboardCanvas groupId={groupId} userId={userId} userName={userName} userColor={userColor} />
+}
+
+function WhiteboardCanvas({ groupId, userId, userName, userColor }: WhiteboardProps) {
     const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8000'
     const uri = `${WS_URL}/whiteboard/${groupId}`
 
@@ -48,4 +60,4 @@ export default function Whiteboard({ groupId, userId, userName, userColor }: Whi
     }
 
     return <Tldraw store={store.store} licenseKey={import.meta.env.VITE_TLDRAW_LICENSE_KEY}/>;
-}   
+}

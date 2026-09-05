@@ -84,13 +84,14 @@ export function WeeklyStudyPlan({
                     const segPct = totalHours > 0 ? (entry.hours / totalHours) * 100 : 0
                     return (
                       <div key={entry.course} style={{ width: `${segPct}%` }}
+                        onTouchStart={() => {}}
                         className="h-full relative group/seg pointer-events-auto">
-                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/seg:block z-20 pointer-events-none">
-                          <div className="bg-gray-900 text-white text-xs rounded-lg px-2.5 py-1.5 whitespace-nowrap shadow-lg">
-                            {entry.course}: {entry.hours}h{entry.status ? ` · ${STATUS_CONFIG[entry.status].label}` : ''}
-                          </div>
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/seg:block group-active/seg:block z-20 pointer-events-none">
+                            <div className="bg-gray-900 text-white text-xs rounded-lg px-2.5 py-1.5 whitespace-nowrap shadow-lg">
+                                {entry.course}: {entry.hours}h{entry.status ? ` · ${STATUS_CONFIG[entry.status].label}` : ''}
+                            </div>
                         </div>
-                      </div>
+                    </div>
                     )
                   })}
                 </div>

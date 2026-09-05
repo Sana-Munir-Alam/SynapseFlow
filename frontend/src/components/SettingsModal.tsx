@@ -8,6 +8,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api } from '../lib/axios'
 import { useCurrentUser } from '../hooks/useCurrentUser'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 interface SettingsModalProps {
     isOpen: boolean
@@ -37,6 +38,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
     const { theme, setTheme, resolvedTheme } = useTheme()
     const isDark = resolvedTheme === 'dark'
+    const isMobile = useIsMobile()
     const { lowBandwidth, setLowBandwidth } = useBandwidth()
 
     const { data: currentUserData } = useCurrentUser()
@@ -99,29 +101,29 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         <div
                             onClick={e => e.stopPropagation()}
                             style={{
-                                width: '100%', maxWidth: '896px', height: '80vh',
+                                width: '100%', maxWidth: isMobile ? '100%' : '896px',
+                                height: isMobile ? '100%' : '80vh',
                                 backgroundColor: surface,
-                                borderRadius: '16px',
-                                boxShadow: shadow,
-                                overflow: 'hidden',
-                                display: 'flex',
+                                borderRadius: isMobile ? '0px' : '16px',
+                                boxShadow: shadow, overflow: 'hidden',
+                                display: 'flex', flexDirection: isMobile ? 'column' : 'row',
                             }}
                         >
                             {/* ── Left sidebar ── */}
                             <div style={{
-                                width: '220px', flexShrink: 0,
+                                width: isMobile ? '100%' : '220px', flexShrink: 0,
                                 backgroundColor: sidebar,
-                                borderRight: `1px solid ${border}`,
-                                padding: '24px 16px',
+                                borderRight: isMobile ? 'none' : `1px solid ${border}`,
+                                borderBottom: isMobile ? `1px solid ${border}` : 'none',
+                                padding: isMobile ? '12px 16px' : '24px 16px',
                                 display: 'flex', flexDirection: 'column',
                             }}>
-                                <p style={{
-                                    fontSize: '18px', fontWeight: 700, color: textPri,
-                                    marginBottom: '20px', paddingLeft: '8px',
-                                }}>
-                                    Settings
-                                </p>
-                                <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                {!isMobile && (
+                                    <p style={{ fontSize: '18px', fontWeight: 700, color: textPri, marginBottom: '20px', paddingLeft: '8px' }}>
+                                        Settings
+                                    </p>
+                                )}
+                                <nav style={{ display: 'flex', flexDirection: isMobile ? 'row' : 'column', gap: '4px', overflowX: isMobile ? 'auto' : 'visible' }}>
                                     {([
                                         { id: 'account' as const,    label: 'Account',    Icon: User    },
                                         { id: 'appearance' as const, label: 'Appearance', Icon: Palette },
@@ -138,18 +140,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                                     border: 'none', cursor: 'pointer',
                                                     fontSize: '14px', fontWeight: 500,
                                                     textAlign: 'left', transition: 'all 0.15s',
-                                                    background: active
-                                                        ? 'linear-gradient(to right, #6B8E23, #556B2F)'
-                                                        : 'transparent',
+                                                    flexShrink: isMobile ? 0 : undefined,
+                                                    whiteSpace: isMobile ? 'nowrap' : undefined,
+                                                    background: active ? 'linear-gradient(to right, #6B8E23, #556B2F)' : 'transparent',
                                                     color: active ? '#ffffff' : textSec,
                                                     boxShadow: active ? '0 4px 14px rgba(107,142,35,0.35)' : 'none',
                                                 }}
-                                                onMouseEnter={e => {
-                                                    if (!active) (e.currentTarget as HTMLButtonElement).style.backgroundColor = hoverBg
-                                                }}
-                                                onMouseLeave={e => {
-                                                    if (!active) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'
-                                                }}
+                                                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.backgroundColor = hoverBg }}
+                                                onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent' }}
                                             >
                                                 <Icon style={{ width: '16px', height: '16px', flexShrink: 0 }} />
                                                 {label}
@@ -164,9 +162,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                 {/* Header */}
                                 <div style={{
                                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                    padding: '20px 24px',
-                                    borderBottom: `1px solid ${border}`,
-                                    flexShrink: 0,
+                                    padding: isMobile ? '16px' : '20px 24px',
+                                    borderBottom: `1px solid ${border}`, flexShrink: 0,
                                 }}>
                                     <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: textPri }}>
                                         {activeTab === 'account' ? 'Account Settings' : activeTab === 'appearance' ? 'Appearance' : 'Data & Bandwidth'}
@@ -186,7 +183,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                 </div>
 
                                 {/* Body */}
-                                <div style={{ flex: 1, overflowY: 'auto', padding: '24px', backgroundColor: surface }}>
+                                <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '16px' : '24px', backgroundColor: surface }}>
 
                                     {/* ── Account tab ── */}
                                     {activeTab === 'account' && (
@@ -384,7 +381,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                 <motion.div
                                     initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
                                     onClick={() => setShowDeleteConfirm(false)}
-                                    style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, width: '100vw', height: '100vh', zIndex: 301, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', boxSizing: 'border-box' }}
+                                    style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, width: '100vw', height: '100vh', zIndex: 301, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? '0px' : '16px', boxSizing: 'border-box' }}
                                 >
                                     <div
                                         onClick={e => e.stopPropagation()}
