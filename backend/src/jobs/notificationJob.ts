@@ -129,9 +129,9 @@ const runJob = async () => {
 }
 
 // Run every day at 8:00 AM server time
-cron.schedule('23 9 * * *', () => {
+cron.schedule('0 8 * * *', () => {
     console.log('[NotificationJob] Running daily deadline check...')
     runJob()
 }, { timezone: 'Asia/Karachi' })
 
-console.log('[NotificationJob] Scheduled — runs daily at 09:23 (Asia/Karachi)')
+console.log('[NotificationJob] Scheduled — runs daily at 08:00 (Asia/Karachi)')
